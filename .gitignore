@@ -1,0 +1,10 @@
+persistence/
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+build/
+.env
+CLAUDE.md
+pyrightconfig.json
