@@ -103,6 +103,29 @@ claude mcp add --scope user archiver-rag $(which archiver-rag) serve
 
 ---
 
+## Agent instructions (skills)
+
+Registering the MCP server gives an agent *access* to the tools — but agents tend to fall back on their own internal memory instead of reaching for the vault. The instruction files in [`skill/`](skill/) fix that: they enforce a **vault-first rule** so the agent searches and stores knowledge in your vault before anything else.
+
+**What the skill enforces:**
+
+- **Before answering or reading source files** — call `search_vault` first; only fall back to internal memory if the vault returns nothing relevant
+- **After solving a non-trivial problem** — call `log_note` to capture the decision/lesson/gotcha back into the vault
+- **The vault is the authoritative memory system** — internal agent memory is a fallback only
+
+A version is provided for each agent, since each loads instructions differently:
+
+| Agent | File | Install to |
+|---|---|---|
+| Claude Code | [`skill/claude-code/SKILL.md`](skill/claude-code/SKILL.md) | `~/.claude/skills/archiver-rag/SKILL.md` (on-demand skill) |
+| OpenCode | [`skill/opencode/AGENTS.md`](skill/opencode/AGENTS.md) | project root `AGENTS.md` or `~/.config/opencode/AGENTS.md` |
+| Codex CLI | [`skill/codex/AGENTS.md`](skill/codex/AGENTS.md) | project root `AGENTS.md` or `~/.codex/AGENTS.md` |
+| GitHub Copilot | [`skill/copilot/copilot-instructions.md`](skill/copilot/copilot-instructions.md) | `.github/copilot-instructions.md` |
+
+Each file is self-contained — it includes the MCP registration snippet for that agent plus the full vault-first rules and tool reference. For Claude Code the file is an on-demand skill; for the others it's an always-on instruction file (loaded into every session), which makes the vault-first behavior unconditional.
+
+---
+
 ## CLI reference
 
 ```bash
