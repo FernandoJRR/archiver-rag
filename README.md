@@ -110,6 +110,7 @@ Registering the MCP server gives an agent *access* to the tools — but agents t
 **What the skill enforces:**
 
 - **Before answering or reading source files** — call `search_vault` first; only fall back to internal memory if the vault returns nothing relevant
+- **When something important is missing from the vault** — proactively `log_note` it. If a fact, decision, or piece of context matters to the overall picture and a `search_vault` came back empty, record it so the knowledge graph grows instead of letting that context die in a single session
 - **After solving a non-trivial problem** — call `log_note` to capture the decision/lesson/gotcha back into the vault
 - **The vault is the authoritative memory system** — internal agent memory is a fallback only
 
@@ -208,6 +209,15 @@ date: 2026-04-27
 ```
 
 The `## Related` section at the bottom of each note is managed automatically by the auto-linker after every ingest. Don't edit it manually — it will be overwritten.
+
+---
+
+## Roadmap
+
+Features on the way:
+
+- **RAG-Anything integration** — extend ingestion beyond Markdown to handle PDFs, Office documents, images, and other file types, so the vault can become a true multi-format knowledge base rather than `.md`-only.
+- **Archiver subagents** — dedicated subagents that take over vault management (search, logging, reorganization, clustering) on the main agent's behalf, so the primary agent can delegate knowledge work instead of context-switching into it.
 
 ---
 
