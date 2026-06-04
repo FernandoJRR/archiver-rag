@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>archiver-rag — A finding aid for your knowledge graph</title>
+  <meta name="description" content="Turns your Obsidian vault into a live, queryable knowledge graph. Semantic search, auto-linking, and graph traversal — exposed as MCP tools any AI agent can use.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ── Tokens ─────────────────────────────────────────────────────── */
+    :root {
+      --paper:       #f3ecdc;
+      --paper-2:     #ebe1cc;
+      --card:        #f7f1e4;
+      --ink:         #221a12;
+      --ink-soft:    #5d4f3c;
+      --ink-faint:   #8a7c66;
+      --accent:      #8d3322;
+      --accent-soft: #b5503c;
+      --brass:       #9a7a36;
+      --green:       #3c5546;
+      --line:        rgba(34,26,18,.16);
+      --line-2:      rgba(34,26,18,.28);
+      --stack:       #171310;
+      --stack-2:     #211b15;
+      --cream:       #efe6d2;
+      --display:     "Fraunces", Georgia, serif;
+      --body:        "Newsreader", Georgia, serif;
+      --mono:        "IBM Plex Mono", "Courier New", monospace;
+    }
+
+    /* ── Reset + base ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--body);
+      font-size: 17px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    img { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+
+    /* ── Grain overlay ──────────────────────────────────────────────── */
+    .grain {
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 9999;
+      mix-blend-mode: multiply;
+      opacity: .045;
+    }
+
+    /* ── Container ──────────────────────────────────────────────────── */
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+
+    /* ── Accession label ────────────────────────────────────────────── */
+    .acc {
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1.25rem;
+    }
+    .acc::before {
+      content: '';
+      display: inline-block;
+      width: 46px; height: 1px;
+      background: var(--accent);
+      vertical-align: middle;
+      margin-right: 12px;
+    }
+
+    /* ── Typography ─────────────────────────────────────────────────── */
+    h1 {
+      font-family: var(--display);
+      font-size: clamp(2.7rem, 6.4vw, 5.1rem);
+      font-weight: 300;
+      line-height: .98;
+      letter-spacing: -.025em;
+      max-width: 14ch;
+      margin-bottom: 1.25rem;
+    }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 300; }
+    h2 {
+      font-family: var(--display);
+      font-size: clamp(1.7rem, 3vw, 2.5rem);
+      font-weight: 400;
+      letter-spacing: -.02em;
+      margin-bottom: .875rem;
+    }
+    .lede {
+      font-family: var(--body);
+      font-size: clamp(1.05rem, 1.7vw, 1.32rem);
+      font-weight: 300;
+      color: var(--ink-soft);
+      max-width: 48ch;
+      margin-bottom: 2rem;
+    }
+
+    /* ── Button ─────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 14px 26px;
+      border: 1px solid;
+      cursor: pointer;
+      transition: background .18s, color .18s, transform .18s;
+    }
+    .btn-primary { background: var(--accent); color: var(--cream); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--ink); border-color: var(--ink); transform: translateY(-2px); }
+    .btn-ghost { background: transparent; color: var(--ink); border-color: var(--line-2); }
+    .btn-ghost:hover { border-color: var(--ink); }
+
+    /* ── Nav ────────────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      height: 62px;
+      background: rgba(243,236,220,.86);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--line-2);
+    }
+    .nav-inner {
+      max-width: 1180px; margin: 0 auto; padding: 0 32px;
+      height: 100%; display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-brand { display: flex; align-items: center; gap: 10px; }
+    .nav-logo { width: 30px; height: 30px; flex-shrink: 0; }
+    .nav-wordmark { display: flex; align-items: baseline; gap: 0; }
+    .nav-wordmark-a { font-family: var(--display); font-size: 1.05rem; font-weight: 500; color: var(--ink); }
+    .nav-wordmark-r { font-family: var(--mono); font-weight: 600; font-size: .64rem; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); border-left: 1px solid var(--line-2); padding-left: 8px; margin-left: 7px; }
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a {
+      font-family: var(--mono); font-size: .68rem; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--ink-soft); transition: color .15s;
+    }
+    .nav-links a:hover { color: var(--accent); }
+    .nav-cta .btn { padding: 9px 18px; }
+
+    /* ── Reveal animation ───────────────────────────────────────────── */
+    .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    /* ── HERO ───────────────────────────────────────────────────────── */
+    #hero { padding: 100px 0 90px; overflow: hidden; }
+    .hero-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 5rem; align-items: start;
+    }
+    .hero-left { position: relative; padding-top: 1.5rem; }
+    .hero-margin-rule {
+      position: absolute; left: -40px; top: 0; bottom: 0;
+      width: 1px; background: var(--accent); opacity: .22;
+    }
+    .hero-ctas { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .hero-right { display: flex; flex-direction: column; align-items: center; gap: 2rem; }
+    .hero-mark-primary { display: flex; justify-content: center; }
+
+    /* ── Catalog card ───────────────────────────────────────────────── */
+    .catalog-card {
+      background: var(--card);
+      border: 1px solid var(--line-2);
+      box-shadow: 6px 7px 0 rgba(34,26,18,.07);
+    }
+    .catalog-header {
+      background: var(--paper-2);
+      border-bottom: 1px solid var(--line);
+      padding: 10px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .catalog-header-label {
+      font-family: var(--mono); font-size: .62rem;
+      letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+    }
+    .catalog-header-acc {
+      font-family: var(--mono); font-size: .62rem;
+      letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+    }
+    .catalog-body {
+      padding: 8px 0 32px;
+      background-color: var(--card);
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent, transparent 27px,
+        rgba(60,85,70,.09) 27px,
+        rgba(60,85,70,.09) 28px
+      );
+    }
+    .catalog-row {
+      display: grid; grid-template-columns: 92px 1fr;
+      padding: 4px 18px; line-height: 28px;
+    }
+    .catalog-key {
+      font-family: var(--mono); font-size: .62rem;
+      letter-spacing: .12em; text-transform: uppercase;
+      color: var(--ink-faint); padding-top: 2px;
+    }
+    .catalog-val { font-family: var(--body); font-size: .9rem; color: var(--ink-soft); }
+    .catalog-val strong { color: var(--accent); font-weight: 500; font-family: var(--body); }
+    .catalog-punch {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--paper); border: 1px solid var(--line-2);
+      margin: 0 auto; position: relative; top: 16px;
+    }
+
+    /* ── Hero terminal ──────────────────────────────────────────────── */
+    .hero-term {
+      width: 100%;
+      border: 1px solid var(--line-2);
+      box-shadow: 6px 7px 0 rgba(34,26,18,.1);
+      overflow: hidden;
+    }
+    .hero-term-bar {
+      background: var(--paper-2);
+      border-bottom: 1px solid var(--line-2);
+      padding: 10px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .hero-term-label {
+      font-family: var(--mono); font-size: .62rem;
+      letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+    }
+    .hero-term-acc {
+      font-family: var(--mono); font-size: .62rem;
+      letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+    }
+    .hero-term-body {
+      background: #2e2215;
+      padding: 1.25rem 1.375rem;
+      font-family: var(--mono);
+      font-size: .8rem;
+      line-height: 1.82;
+      min-height: 270px;
+      overflow: hidden;
+      position: relative;
+    }
+    /* subtle scanlines to tie terminal into the paper grain aesthetic */
+    .hero-term-body::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent, transparent 3px,
+        rgba(0,0,0,.045) 3px, rgba(0,0,0,.045) 4px
+      );
+      pointer-events: none;
+    }
+    #hero-term-out { white-space: pre-wrap; position: relative; z-index: 1; }
+    .hero-term-cursor {
+      display: inline-block;
+      width: 7px; height: 1em;
+      background: var(--brass);
+      vertical-align: text-bottom;
+      margin-left: 1px;
+      animation: blink-caret 1.1s step-end infinite;
+      position: relative; z-index: 1;
+    }
+    @keyframes blink-caret { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── PIPELINE ───────────────────────────────────────────────────── */
+    #pipeline { background: var(--paper-2); border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); padding: 80px 0; }
+    .pipeline-head { margin-bottom: 3rem; }
+    .pipeline-sub { color: var(--ink-soft); font-size: 1rem; margin-top: .5rem; max-width: 52ch; }
+    .pipeline-strip {
+      border: 1px solid var(--line-2);
+      background: var(--card);
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      box-shadow: 4px 5px 0 rgba(34,26,18,.06);
+    }
+    .flow-step {
+      padding: 28px 24px;
+      border-right: 1px solid var(--line);
+      position: relative;
+    }
+    .flow-step:last-child { border-right: none; }
+    .flow-num {
+      font-family: var(--mono); font-size: .62rem;
+      letter-spacing: .14em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 1rem;
+    }
+    .flow-title { font-family: var(--display); font-size: 1.2rem; font-weight: 500; margin-bottom: .375rem; }
+    .flow-desc { font-size: .875rem; color: var(--ink-soft); line-height: 1.6; }
+    .flow-arrow {
+      position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
+      font-size: 1.1rem; color: var(--accent); z-index: 1;
+      background: var(--card); padding: 4px 2px;
+    }
+
+    /* ── RETRIEVAL ──────────────────────────────────────────────────── */
+    #retrieval { padding: 90px 0; }
+    .layer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+    .layer-card {
+      background: var(--card);
+      border: 1px solid var(--line-2);
+      padding: 2rem 1.75rem 2rem;
+      position: relative; overflow: hidden;
+      transition: transform .2s;
+      box-shadow: 3px 4px 0 rgba(34,26,18,.05);
+    }
+    .layer-card:hover { transform: translateY(-4px); box-shadow: 3px 8px 0 rgba(34,26,18,.09); }
+    .layer-numeral {
+      position: absolute; right: 12px; top: -8px;
+      font-family: var(--display); font-size: 5.5rem;
+      font-weight: 300; font-style: italic;
+      color: var(--paper-2); line-height: 1; user-select: none;
+      pointer-events: none;
+    }
+    .layer-tag {
+      font-family: var(--mono); font-size: .62rem;
+      letter-spacing: .12em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 1rem;
+      position: relative;
+    }
+    .layer-title { font-family: var(--display); font-size: 1.18rem; font-weight: 500; margin-bottom: .75rem; position: relative; }
+    .layer-desc { font-size: .9rem; color: var(--ink-soft); line-height: 1.7; position: relative; }
+
+    /* ── FEATURES ───────────────────────────────────────────────────── */
+    #features { background: var(--paper-2); border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); padding: 90px 0; }
+    .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+    .index-card {
+      background: var(--card);
+      border: 1px solid var(--line-2);
+      padding: 1.75rem;
+      position: relative;
+      box-shadow: 3px 4px 0 rgba(34,26,18,.06);
+      transition: transform .2s, box-shadow .2s;
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent, transparent 25px,
+        rgba(60,85,70,.08) 25px,
+        rgba(60,85,70,.08) 26px
+      );
+    }
+    .index-card:hover { transform: translateY(-3px) rotate(-.4deg); box-shadow: 5px 7px 0 rgba(34,26,18,.1); }
+    .call-num {
+      display: inline-block;
+      font-family: var(--mono); font-size: .6rem;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: var(--accent); border: 1px solid var(--accent);
+      padding: 2px 8px; margin-bottom: 1rem;
+    }
+    .index-title { font-family: var(--display); font-size: 1.1rem; font-weight: 500; margin-bottom: .625rem; }
+    .index-desc { font-size: .875rem; color: var(--ink-soft); line-height: 1.7; }
+    .index-desc code { font-family: var(--mono); font-size: .8rem; color: var(--accent); }
+
+    /* ── GRAPH SECTION ──────────────────────────────────────────────── */
+    #graph { background: var(--stack); padding: 90px 0; }
+    .graph-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; align-items: center; }
+    .graph-copy h2 { color: var(--cream); }
+    .graph-copy .acc { color: var(--brass); }
+    .graph-copy .acc::before { background: var(--brass); }
+    .graph-copy p { color: rgba(239,230,210,.7); font-size: .95rem; margin-bottom: 1.5rem; }
+    .fm-pills { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .fm-pill {
+      font-family: var(--mono); font-size: .7rem;
+      background: rgba(154,122,54,.12); border: 1px solid rgba(154,122,54,.3);
+      color: var(--brass); padding: 4px 12px;
+    }
+    .graph-glow { position: relative; }
+    .graph-glow::before {
+      content: ''; position: absolute;
+      width: 220px; height: 220px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(154,122,54,.18) 0%, transparent 70%);
+      top: 50%; left: 50%; transform: translate(-50%,-50%);
+      pointer-events: none;
+    }
+    .graph-svg { border: 1px solid rgba(239,230,210,.06); display: block; width: 100%; }
+
+    /* graph edge draw animation */
+    .g-edge {
+      stroke: rgba(154,122,54,.45); stroke-width: 1;
+      fill: none; stroke-dasharray: 250; stroke-dashoffset: 250;
+      animation: draw-edge .8s ease forwards;
+    }
+    @keyframes draw-edge { to { stroke-dashoffset: 0; } }
+    .g-node { fill: var(--brass); stroke: var(--stack); stroke-width: 2; }
+    .g-node-hub { fill: var(--accent-soft); animation: pulse-node 4s ease-in-out infinite; }
+    @keyframes pulse-node { 0%,100%{r:6} 50%{r:7.5} }
+    .g-label { font-family: "IBM Plex Mono", monospace; font-size: 7px; fill: rgba(239,230,210,.65); }
+
+    /* ── TOOLS LEDGER ───────────────────────────────────────────────── */
+    #tools { padding: 90px 0; }
+    .ledger {
+      width: 100%;
+      border: 1px solid var(--line-2);
+      border-collapse: collapse;
+      background: var(--card);
+      box-shadow: 4px 5px 0 rgba(34,26,18,.06);
+    }
+    .ledger thead tr { background: var(--ink); }
+    .ledger th {
+      font-family: var(--mono); font-size: .62rem;
+      letter-spacing: .12em; text-transform: uppercase;
+      color: var(--cream); padding: 14px 18px;
+      border-right: 1px solid rgba(239,230,210,.1);
+      font-weight: 500; text-align: left;
+    }
+    .ledger th:last-child { border-right: none; }
+    .ledger td {
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      vertical-align: top;
+    }
+    .ledger td:last-child { border-right: none; }
+    .ledger tr:last-child td { border-bottom: none; }
+    .ledger tbody tr:hover td { background: var(--paper-2); }
+    .ledger-num {
+      font-family: var(--mono); font-size: .7rem;
+      color: var(--ink-faint); width: 48px;
+    }
+    .ledger-name {
+      font-family: var(--mono); font-size: .82rem;
+      color: var(--accent); width: 220px; font-weight: 500;
+    }
+    .ledger-desc { font-size: .875rem; color: var(--ink-soft); line-height: 1.6; }
+    .ledger-desc code { font-family: var(--mono); font-size: .78rem; color: var(--accent-soft); }
+
+    /* ── INSTALL TERMINAL ───────────────────────────────────────────── */
+    #install { background: var(--paper-2); border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); padding: 90px 0; }
+    .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; align-items: center; }
+    .install-copy .lede { margin-bottom: 2rem; }
+    .install-ctas { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    .terminal {
+      background: var(--stack);
+      border: 1px solid var(--stack-2);
+      box-shadow: 7px 9px 0 rgba(34,26,18,.12);
+    }
+    .term-bar {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--stack-2);
+      display: flex; align-items: center; gap: 7px;
+    }
+    .term-dot { width: 9px; height: 9px; border-radius: 50%; background: #4a4036; }
+    .term-path { font-family: var(--mono); font-size: .65rem; color: #6f6452; margin-left: 8px; }
+    .term-body { padding: 20px 22px; font-family: var(--mono); font-size: .82rem; line-height: 1.95; }
+    .tp { color: var(--brass); }          /* prompt $ */
+    .tc { color: var(--cream); }          /* command */
+    .tm { color: #6f6452; }               /* comment / dim */
+    .ts { color: #7fa382; }               /* success ✓ */
+    .targ { color: rgba(239,230,210,.5); } /* args continuation */
+
+    /* ── FOOTER ─────────────────────────────────────────────────────── */
+    footer { background: var(--paper-2); border-top: 1px solid var(--line-2); padding: 60px 0 48px; }
+    .footer-inner { display: grid; grid-template-columns: 1fr auto 1fr; gap: 3rem; align-items: start; }
+    .footer-brand { display: flex; align-items: center; gap: 10px; margin-bottom: .75rem; }
+    .footer-logo { width: 40px; height: 40px; flex-shrink: 0; }
+    .footer-wordmark { display: flex; align-items: baseline; gap: 0; }
+    .footer-wordmark-a { font-family: var(--display); font-size: 1rem; font-weight: 500; color: var(--ink); }
+    .footer-wordmark-r { font-family: var(--mono); font-weight: 600; font-size: .64rem; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); border-left: 1px solid var(--line-2); padding-left: 8px; margin-left: 7px; }
+    .footer-tagline { font-size: .82rem; color: var(--ink-soft); margin-bottom: 1.25rem; }
+    .footer-links { list-style: none; display: flex; flex-direction: column; gap: .5rem; }
+    .footer-links a { font-family: var(--mono); font-size: .7rem; letter-spacing: .08em; color: var(--ink-faint); text-transform: uppercase; transition: color .15s; }
+    .footer-links a:hover { color: var(--accent); }
+    .footer-right { text-align: right; }
+    .footer-right .footer-links { align-items: flex-end; }
+    .footer-note { font-family: var(--mono); font-size: .6rem; letter-spacing: .1em; color: var(--ink-faint); margin-top: 1.25rem; text-transform: uppercase; }
+
+    /* ── Stamp ──────────────────────────────────────────────────────── */
+    .stamp {
+      display: inline-block;
+      border: 2px solid var(--accent);
+      outline: 2px solid var(--accent);
+      outline-offset: 4px;
+      padding: 14px 22px;
+      transform: rotate(-6deg);
+      opacity: .8;
+      text-align: center;
+    }
+    .stamp-line { font-family: var(--mono); font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); line-height: 1.9; }
+    .stamp-big { font-family: var(--display); font-size: 1.5rem; font-weight: 300; color: var(--accent); }
+
+    /* ── Copy block ─────────────────────────────────────────────────── */
+    .copy-block {
+      background: var(--stack);
+      border: 1px solid var(--stack-2);
+      padding: 1rem 1.25rem;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; margin-bottom: 1rem;
+    }
+    .copy-block code { font-family: var(--mono); font-size: .82rem; color: var(--cream); }
+    .copy-btn {
+      background: transparent;
+      border: 1px solid rgba(239,230,210,.2);
+      color: rgba(239,230,210,.5);
+      font-family: var(--mono); font-size: .65rem;
+      letter-spacing: .06em; text-transform: uppercase;
+      padding: 5px 12px; cursor: pointer;
+      transition: all .15s; white-space: nowrap;
+    }
+    .copy-btn:hover { border-color: var(--brass); color: var(--brass); }
+    .copy-btn.copied { border-color: #7fa382; color: #7fa382; }
+
+    /* focus visible */
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+    /* ── Responsive ─────────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .feat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 860px) {
+      .graph-grid { grid-template-columns: 1fr; gap: 3rem; }
+    }
+    @media (max-width: 820px) {
+      .pipeline-strip { grid-template-columns: 1fr; }
+      .flow-step { border-right: none; border-bottom: 1px solid var(--line); }
+      .flow-step:last-child { border-bottom: none; }
+      .flow-arrow { right: auto; left: 50%; top: auto; bottom: -14px; transform: translateX(-50%); }
+      .install-grid { grid-template-columns: 1fr; gap: 3rem; }
+    }
+    @media (max-width: 760px) {
+      .nav-links { display: none; }
+      .hero-grid { grid-template-columns: 1fr; gap: 3rem; }
+      .hero-margin-rule { display: none; }
+      .layer-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      .ledger-desc { display: none; }
+      .ledger-name { width: auto; }
+    }
+    @media (max-width: 600px) {
+      .feat-grid { grid-template-columns: 1fr; }
+      .container { padding: 0 20px; }
+      .footer-inner { grid-template-columns: 1fr; }
+      .footer-right { text-align: left; }
+      .footer-right .footer-links { align-items: flex-start; }
+    }
+
+    /* ── Reduced motion ─────────────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .g-edge { animation: none; stroke-dashoffset: 0; }
+      .g-node-hub { animation: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- grain overlay -->
+<div class="grain" aria-hidden="true">
+  <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+    <filter id="grain-filter">
+      <feTurbulence type="fractalNoise" baseFrequency="0.68" numOctaves="4" stitchTiles="stitch"/>
+    </filter>
+    <rect width="100%" height="100%" filter="url(#grain-filter)"/>
+  </svg>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">
+      <svg class="nav-logo" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+        <rect x="48" y="32" width="40" height="56" fill="#ebe1cc" stroke="rgba(34,26,18,.4)" stroke-width="3"/>
+        <rect x="30" y="44" width="44" height="58" fill="#f7f1e4" stroke="#221a12" stroke-width="4"/>
+        <rect x="30" y="44" width="17" height="8" fill="#8d3322"/>
+        <g stroke="#9a7a36" stroke-width="3"><line x1="44" y1="68" x2="62" y2="62"/><line x1="44" y1="68" x2="60" y2="88"/></g>
+        <circle cx="62" cy="62" r="3.4" fill="#221a12"/>
+        <circle cx="60" cy="88" r="3.4" fill="#221a12"/>
+        <circle cx="44" cy="68" r="5" fill="#8d3322"/>
+      </svg>
+      <span class="nav-wordmark"><span class="nav-wordmark-a">Archiver</span><span class="nav-wordmark-r">RAG</span></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#pipeline">Pipeline</a></li>
+      <li><a href="#retrieval">Retrieval</a></li>
+      <li><a href="#graph">The Graph</a></li>
+      <li><a href="#tools">Tools</a></li>
+    </ul>
+    <div class="nav-cta">
+      <a href="#install" class="btn btn-ghost">Install</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════ HERO -->
+<section id="hero">
+  <div class="container">
+    <div class="hero-grid">
+
+      <div class="hero-left">
+        <div class="hero-margin-rule" aria-hidden="true"></div>
+        <p class="acc">Acc. No. 0001 · MCP Memory System</p>
+        <h1>A <em>finding aid</em> for your knowledge graph</h1>
+        <p class="lede">Turns your Obsidian vault into a live, queryable knowledge graph. Connect it once — every agent you use gets semantic search, wikilink traversal, and vault health through standard MCP tools.</p>
+        <div class="hero-ctas">
+          <a href="#install" class="btn btn-primary">Get started</a>
+          <a href="https://github.com/FernandoJRR/archiver-rag" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">View on GitHub →</a>
+        </div>
+      </div>
+
+      <div class="hero-right">
+        <div class="hero-mark-primary reveal">
+          <svg width="148" height="148" viewBox="0 0 120 120" role="img" aria-label="Three stacked archive records with the front record pulled forward, showing a knowledge graph hub node and its wikilink-connected neighbors">
+            <rect x="50" y="30" width="42" height="58" fill="#ebe1cc" stroke="rgba(34,26,18,.32)" stroke-width="1.6"/>
+            <rect x="41" y="37" width="42" height="58" fill="#f3ecdc" stroke="rgba(34,26,18,.45)" stroke-width="1.8"/>
+            <rect x="31" y="44" width="44" height="58" fill="#f7f1e4" stroke="#221a12" stroke-width="2.4"/>
+            <rect x="31" y="44" width="15" height="6" fill="#8d3322"/>
+            <g stroke="#9a7a36" stroke-width="1.5">
+              <line x1="45" y1="67" x2="63" y2="60"/>
+              <line x1="45" y1="67" x2="66" y2="83"/>
+              <line x1="45" y1="67" x2="44" y2="90"/>
+            </g>
+            <circle cx="63" cy="60" r="2.4" fill="#221a12"/>
+            <circle cx="66" cy="83" r="2.4" fill="#221a12"/>
+            <circle cx="44" cy="90" r="2.4" fill="#221a12"/>
+            <circle cx="45" cy="67" r="3.6" fill="#8d3322"/>
+          </svg>
+        </div>
+        <div class="hero-term reveal">
+          <div class="hero-term-bar">
+            <span class="hero-term-label">Terminal · archiver-rag</span>
+            <span class="hero-term-acc">Acc. No. 0001</span>
+          </div>
+          <div class="hero-term-body">
+            <span id="hero-term-out"></span><span class="hero-term-cursor" id="hero-term-cursor"></span>
+          </div>
+        </div>
+      </div><!-- /hero-right -->
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ PIPELINE -->
+<section id="pipeline">
+  <div class="container">
+    <div class="pipeline-head reveal">
+      <p class="acc">Acc. No. 0002 · Ingest Pipeline</p>
+      <h2>From save to searchable in seconds</h2>
+      <p class="pipeline-sub">A background file watcher fires on every Obsidian save, re-chunks the note, and updates the vector index — no manual step required.</p>
+    </div>
+    <div class="pipeline-strip reveal">
+      <div class="flow-step">
+        <div class="flow-num">Step 01</div>
+        <div class="flow-title">The Vault</div>
+        <div class="flow-desc">Your Obsidian markdown files, organised however you work. archiver-rag watches the root non-destructively.</div>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">Step 02</div>
+        <div class="flow-title">Ingest</div>
+        <div class="flow-desc">On every save the watcher picks up the change, splits the note into 500-word overlapping chunks, and prepends structural metadata.</div>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">Step 03</div>
+        <div class="flow-title">ChromaDB</div>
+        <div class="flow-desc">Vectors stored locally with rich metadata: folder, tags, wikilinks, incoming link count. Persistent across restarts.</div>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">Step 04</div>
+        <div class="flow-title">The Agent</div>
+        <div class="flow-desc">Any MCP-compatible agent calls <code style="font-family:var(--mono);font-size:.8rem;color:var(--accent)">search_vault</code> and receives ranked results with graph boost scores.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ RETRIEVAL -->
+<section id="retrieval">
+  <div class="container">
+    <div class="reveal">
+      <p class="acc">Acc. No. 0003 · Retrieval Architecture</p>
+      <h2>Three layers of signal, not one</h2>
+      <p class="lede" style="margin-bottom:3rem;">Semantic similarity is the entry point. Graph proximity and hub importance shape the final ranking.</p>
+    </div>
+    <div class="layer-grid reveal">
+      <div class="layer-card">
+        <span class="layer-numeral" aria-hidden="true">i.</span>
+        <div class="layer-tag">Layer I</div>
+        <div class="layer-title">Contextual prefix</div>
+        <p class="layer-desc">Before embedding, each chunk is prepended with the note's location, tags, and wikilinks. The vector carries structural context, not just raw text — so similar structure surfaces alongside similar meaning.</p>
+      </div>
+      <div class="layer-card">
+        <span class="layer-numeral" aria-hidden="true">ii.</span>
+        <div class="layer-tag">Layer II</div>
+        <div class="layer-title">Metadata filtering</div>
+        <p class="layer-desc">Every chunk is stored with folder, tags, wikilinks, and incoming link count as filterable fields. Search can constrain by any dimension before the vector ranking even runs.</p>
+      </div>
+      <div class="layer-card">
+        <span class="layer-numeral" aria-hidden="true">iii.</span>
+        <div class="layer-tag">Layer III</div>
+        <div class="layer-title">Graph reranking</div>
+        <p class="layer-desc">After ChromaDB returns candidates, scores are boosted by proximity to a <code style="font-family:var(--mono);font-size:.82rem;color:var(--accent)">context_note</code> and by hub importance — how many other notes link to this one.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="reveal">
+      <p class="acc">Acc. No. 0004 · Feature Reference</p>
+      <h2>What it can do</h2>
+      <p class="lede" style="margin-bottom:3rem;">Six capabilities built into the same background service.</p>
+    </div>
+    <div class="feat-grid reveal">
+      <div class="index-card">
+        <div class="call-num">Ref · 001</div>
+        <div class="index-title">Auto-linking</div>
+        <p class="index-desc">After every ingest, <code>linker.py</code> appends a <code>## Related</code> section with wikilinks to semantically similar notes — building the graph without agent intervention.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Ref · 002</div>
+        <div class="index-title">Knowledge logging</div>
+        <p class="index-desc"><code>log_note</code> creates dated notes in typed folders (<code>decision/</code>, <code>lesson/</code>, <code>gotcha/</code>). The watcher picks them up and auto-links them immediately.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Ref · 003</div>
+        <div class="index-title">Vault health</div>
+        <p class="index-desc"><code>vault_status</code> returns orphaned notes, missing frontmatter, broken wikilinks, tag stats, and recent activity — in a single MCP call, no arguments.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Ref · 004</div>
+        <div class="index-title">Link-aware moves</div>
+        <p class="index-desc"><code>move_notes</code> moves one or many files and rewrites every <code>[[wikilink]]</code> across the vault automatically. No orphaned references left behind.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Ref · 005</div>
+        <div class="index-title">Smart clustering</div>
+        <p class="index-desc">Label propagation over the wikilink graph suggests folder assignments for a single note or the entire vault. Preview before applying, or let the watcher run it automatically.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Ref · 006</div>
+        <div class="index-title">Agent-agnostic</div>
+        <p class="index-desc">Standard MCP over stdio. No proprietary SDK, no vendor lock-in. Claude Code, Cursor, Windsurf, Gemini CLI, Zed — if it speaks MCP, it works with archiver-rag.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ GRAPH -->
+<section id="graph">
+  <div class="container">
+    <div class="graph-grid">
+
+      <div class="graph-copy reveal">
+        <p class="acc">Acc. No. 0005 · Knowledge Graph</p>
+        <h2>Notes are nodes.<br>Wikilinks are edges.</h2>
+        <p>archiver-rag understands the structure of your vault, not just the text inside it. Every <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">[[link]]</code> is a graph edge that shapes search, clustering, and auto-linking.</p>
+        <p>Frontmatter is first-class: <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">type</code>, <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">tags</code>, and <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">related</code> are stored as filterable metadata on every chunk.</p>
+        <div class="fm-pills">
+          <span class="fm-pill">type: decision</span>
+          <span class="fm-pill">tags: [architecture]</span>
+          <span class="fm-pill">related: [[pattern-async]]</span>
+          <span class="fm-pill">date: 2026-04-18</span>
+        </div>
+      </div>
+
+      <div class="graph-glow reveal">
+        <svg class="graph-svg" viewBox="0 0 360 300" xmlns="http://www.w3.org/2000/svg"
+          role="img" aria-label="Knowledge graph: notes as nodes connected by wikilinks as edges. INDEX.md is the central hub node.">
+          <title>Knowledge graph — notes as nodes, wikilinks as edges</title>
+
+          <!-- Edges -->
+          <line class="g-edge" x1="180" y1="150" x2="95" y2="80"  style="animation-delay:.1s"/>
+          <line class="g-edge" x1="180" y1="150" x2="270" y2="85" style="animation-delay:.25s"/>
+          <line class="g-edge" x1="180" y1="150" x2="70"  y2="210" style="animation-delay:.4s"/>
+          <line class="g-edge" x1="180" y1="150" x2="290" y2="205" style="animation-delay:.55s"/>
+          <line class="g-edge" x1="180" y1="150" x2="180" y2="52"  style="animation-delay:.7s"/>
+          <line class="g-edge" x1="180" y1="150" x2="58"  y2="148" style="animation-delay:.85s"/>
+          <line class="g-edge" x1="95"  y1="80"  x2="270" y2="85"  style="animation-delay:1s"/>
+          <line class="g-edge" x1="70"  y1="210" x2="290" y2="205" style="animation-delay:1.15s"/>
+          <line class="g-edge" x1="180" y1="52"  x2="270" y2="85"  style="animation-delay:.95s"/>
+
+          <!-- Satellite nodes -->
+          <circle class="g-node" cx="95"  cy="80"  r="5"/>
+          <circle class="g-node" cx="270" cy="85"  r="5"/>
+          <circle class="g-node" cx="70"  cy="210" r="5"/>
+          <circle class="g-node" cx="290" cy="205" r="5"/>
+          <circle class="g-node" cx="180" cy="52"  r="5"/>
+          <circle class="g-node" cx="58"  cy="148" r="5"/>
+
+          <!-- Hub node -->
+          <circle class="g-node g-node-hub" cx="180" cy="150" r="6"/>
+
+          <!-- Labels -->
+          <text class="g-label" x="180" y="165" text-anchor="middle">INDEX.md</text>
+          <text class="g-label" x="95"  y="95"  text-anchor="middle">decision-04</text>
+          <text class="g-label" x="272" y="100" text-anchor="middle">pattern-async</text>
+          <text class="g-label" x="70"  y="225" text-anchor="middle">lesson-02</text>
+          <text class="g-label" x="290" y="220" text-anchor="middle">gotcha-11</text>
+          <text class="g-label" x="180" y="42"  text-anchor="middle">meeting-01</text>
+          <text class="g-label" x="42"  y="143" text-anchor="middle">idea-07</text>
+        </svg>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ TOOLS -->
+<section id="tools">
+  <div class="container">
+    <div class="reveal">
+      <p class="acc">Acc. No. 0006 · MCP Tool Ledger</p>
+      <h2>Seven tools. Any agent.</h2>
+      <p class="lede" style="margin-bottom:2.5rem;">Every capability is a discrete MCP tool — discoverable, composable, and callable from any agent that speaks stdio MCP.</p>
+    </div>
+    <div class="reveal">
+      <table class="ledger">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Tool</th>
+            <th>Function</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ledger-num">001</td>
+            <td class="ledger-name">search_vault</td>
+            <td class="ledger-desc">Semantic search with graph reranking. Pass <code>context_note</code> to boost wikilink neighbors of a known note.</td>
+          </tr>
+          <tr>
+            <td class="ledger-num">002</td>
+            <td class="ledger-name">vault_status</td>
+            <td class="ledger-desc">Structure, health, orphaned notes, tag statistics, and recent activity — one call, no arguments.</td>
+          </tr>
+          <tr>
+            <td class="ledger-num">003</td>
+            <td class="ledger-name">get_connections</td>
+            <td class="ledger-desc">BFS wikilink traversal. Returns direct links or multi-hop neighborhoods up to depth 3.</td>
+          </tr>
+          <tr>
+            <td class="ledger-num">004</td>
+            <td class="ledger-name">move_notes</td>
+            <td class="ledger-desc">Move one or many files. All <code>[[wikilinks]]</code> across the vault are rewritten automatically after every move.</td>
+          </tr>
+          <tr>
+            <td class="ledger-num">005</td>
+            <td class="ledger-name">log_note</td>
+            <td class="ledger-desc">Create a dated knowledge note from any agent. The watcher indexes and auto-links it within seconds of creation.</td>
+          </tr>
+          <tr>
+            <td class="ledger-num">006</td>
+            <td class="ledger-name">cluster_note</td>
+            <td class="ledger-desc">Suggest a folder for one note based on where its wikilink neighbors currently live. Fast, no full-graph pass.</td>
+          </tr>
+          <tr>
+            <td class="ledger-num">007</td>
+            <td class="ledger-name">cluster_vault</td>
+            <td class="ledger-desc">Label-propagation clustering of the entire vault wikilink graph. Preview with <code>apply=false</code> before committing.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ INSTALL -->
+<section id="install">
+  <div class="container">
+    <div class="install-grid">
+
+      <div class="install-copy reveal">
+        <p class="acc">Acc. No. 0007 · Installation</p>
+        <h2>Up and running in four commands</h2>
+        <p class="lede">Edit a note in Obsidian, save it, and it's indexed and auto-linked within seconds.</p>
+        <div class="copy-block">
+          <code>pipx install archiver-rag</code>
+          <button class="copy-btn" data-copy="pipx install archiver-rag">copy</button>
+        </div>
+        <div class="copy-block">
+          <code>claude mcp add --scope user archiver-rag $(which archiver-rag) serve</code>
+          <button class="copy-btn" data-copy="claude mcp add --scope user archiver-rag $(which archiver-rag) serve">copy</button>
+        </div>
+        <div class="install-ctas" style="margin-top:1.5rem">
+          <a href="#" class="btn btn-primary">Get started</a>
+          <a href="https://github.com/FernandoJRR/archiver-rag" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">GitHub →</a>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <div class="terminal">
+          <div class="term-bar">
+            <span class="term-dot"></span>
+            <span class="term-dot"></span>
+            <span class="term-dot"></span>
+            <span class="term-path">~/Documents/MyVault — archiver-rag</span>
+          </div>
+          <div class="term-body">
+<span class="tp">$</span> <span class="tc">pipx install archiver-rag</span>
+<span class="tm">  installed package archiver-rag</span>
+<span class="ts">  ✓ archiver-rag is now on your PATH</span>
+
+<span class="tp">$</span> <span class="tc">archiver-rag init</span>
+  <span class="tm">vault path:</span> <span class="tc">~/Documents/MyVault</span>
+  <span class="tm">autostart on login:</span> <span class="tc">yes</span>
+<span class="ts">  ✓ config saved</span>
+<span class="ts">  ✓ vault indexed</span>
+<span class="ts">  ✓ service registered</span>
+
+<span class="tp">$</span> <span class="tc">claude mcp add --scope user \</span>
+<span class="targ">    archiver-rag $(which archiver-rag) serve</span>
+<span class="ts">  ✓ MCP server registered</span>
+
+<span class="tp">$</span> <span class="tc">archiver-rag status</span>
+<span class="ts">  ✓ running</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+
+      <div>
+        <div class="footer-brand">
+          <svg class="footer-logo" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+            <rect x="50" y="30" width="42" height="58" fill="#ebe1cc" stroke="rgba(34,26,18,.32)" stroke-width="1.6"/>
+            <rect x="41" y="37" width="42" height="58" fill="#f3ecdc" stroke="rgba(34,26,18,.45)" stroke-width="1.8"/>
+            <rect x="31" y="44" width="44" height="58" fill="#f7f1e4" stroke="#221a12" stroke-width="2.4"/>
+            <rect x="31" y="44" width="15" height="6" fill="#8d3322"/>
+            <g stroke="#9a7a36" stroke-width="1.5">
+              <line x1="45" y1="67" x2="63" y2="60"/>
+              <line x1="45" y1="67" x2="66" y2="83"/>
+              <line x1="45" y1="67" x2="44" y2="90"/>
+            </g>
+            <circle cx="63" cy="60" r="2.4" fill="#221a12"/>
+            <circle cx="66" cy="83" r="2.4" fill="#221a12"/>
+            <circle cx="44" cy="90" r="2.4" fill="#221a12"/>
+            <circle cx="45" cy="67" r="3.6" fill="#8d3322"/>
+          </svg>
+          <span class="footer-wordmark"><span class="footer-wordmark-a">Archiver</span><span class="footer-wordmark-r">RAG</span></span>
+        </div>
+        <p class="footer-tagline">Agent-agnostic memory management system<br>for your Obsidian vault.</p>
+        <ul class="footer-links">
+          <li><a href="https://github.com/FernandoJRR/archiver-rag" target="_blank" rel="noopener noreferrer">GitHub →</a></li>
+          <li><a href="https://pypi.org/project/archiver-rag/" target="_blank" rel="noopener noreferrer">PyPI →</a></li>
+          <li><a href="https://github.com/FernandoJRR/archiver-rag/issues" target="_blank" rel="noopener noreferrer">Issues →</a></li>
+        </ul>
+      </div>
+
+      <div style="padding-top:1rem">
+        <div class="stamp">
+          <div class="stamp-big">MIT</div>
+          <div class="stamp-line">Open · 2026</div>
+          <div class="stamp-line">Record Complete</div>
+        </div>
+      </div>
+
+      <div class="footer-right">
+        <ul class="footer-links">
+          <li><a href="https://github.com/FernandoJRR/archiver-rag" target="_blank" rel="noopener noreferrer">Source code</a></li>
+          <li><a href="https://github.com/FernandoJRR/archiver-rag/blob/main/README.md" target="_blank" rel="noopener noreferrer">Documentation</a></li>
+          <li><a href="https://github.com/FernandoJRR/archiver-rag/releases" target="_blank" rel="noopener noreferrer">Changelog</a></li>
+        </ul>
+        <p class="footer-note">Cat. № archiver-rag · Built with Python · MCP</p>
+      </div>
+
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ── Scroll reveal with stagger ─────────────────────────────────────
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const el = entry.target;
+      const siblings = el.parentElement
+        ? [...el.parentElement.querySelectorAll('.reveal')]
+        : [el];
+      const idx = siblings.indexOf(el);
+      el.style.transitionDelay = (idx * 60) + 'ms';
+      el.classList.add('visible');
+      observer.unobserve(el);
+    });
+  }, { threshold: .14 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // ── Hero terminal typewriter ───────────────────────────────────────
+  const HERO_LINES = [
+    { text: 'archiver-rag init',                                isCmd: true },
+    { text: '🔍 Archiver RAG Setup',                            cls: 'tm' },
+    { text: '',                                                  cls: '' },
+    { text: 'Path to your Obsidian vault: ~/Documents/MyVault', cls: 'tc' },
+    { text: 'Start automatically on login? [y/n] (y): y',       cls: 'tc' },
+    { text: '✅ Config saved',                                   cls: 'ts' },
+    { text: '📚 Indexing vault... done (47 notes, 203 chunks)',  cls: 'tc' },
+    { text: '✅ Registered archiver-rag MCP in Claude Code',    cls: 'ts' },
+    { text: '✅ Service registered with launchd',               cls: 'ts' },
+    { text: '✅ Setup complete!',                               cls: 'ts' },
+    { text: '',                                                  cls: '' },
+    { text: 'archiver-rag status',                              isCmd: true },
+    { text: '✅ Running',                                       cls: 'ts' },
+  ];
+
+  const heroOut = document.getElementById('hero-term-out');
+  let hLi = 0, hCi = 0, hCur = null;
+
+  function heroType() {
+    if (hLi >= HERO_LINES.length) {
+      setTimeout(() => {
+        heroOut.style.transition = 'opacity 0.4s';
+        heroOut.style.opacity = '0';
+        setTimeout(() => {
+          heroOut.innerHTML = '';
+          heroOut.style.transition = '';
+          heroOut.style.opacity = '1';
+          hLi = 0; hCi = 0; hCur = null;
+          setTimeout(heroType, 500);
+        }, 400);
+      }, 3000);
+      return;
+    }
+
+    const line = HERO_LINES[hLi];
+
+    if (hCi === 0) {
+      if (hLi > 0) heroOut.appendChild(document.createTextNode('\n'));
+      if (line.text === '') { hLi++; hCi = 0; setTimeout(heroType, 200); return; }
+      if (line.isCmd) {
+        const prompt = document.createElement('span');
+        prompt.className = 'tp';
+        prompt.textContent = '$ ';
+        heroOut.appendChild(prompt);
+      }
+      hCur = document.createElement('span');
+      hCur.className = line.isCmd ? 'tc' : (line.cls || '');
+      heroOut.appendChild(hCur);
+    }
+
+    if (hCi < line.text.length) {
+      hCur.textContent += line.text[hCi++];
+      setTimeout(heroType, 40);
+    } else {
+      hLi++; hCi = 0; hCur = null;
+      setTimeout(heroType, line.isCmd ? 300 : 160);
+    }
+  }
+
+  setTimeout(heroType, 500);
+
+  // ── Copy to clipboard ──────────────────────────────────────────────
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const text = btn.getAttribute('data-copy');
+      const orig = btn.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '✓ copied'; btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        Object.assign(ta.style, { position:'fixed', opacity:'0' });
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        btn.textContent = '✓ copied'; btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+      });
+    });
+  });
+</script>
+</body>
+</html>

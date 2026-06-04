@@ -1,9 +1,16 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Archiver RAG" width="180" />
+  <img src="assets/logo.svg" alt="Archiver RAG" width="96" />
 </p>
 
-# Archiver RAG
-### The agent-agnostic memory management system through Obsidian-esque techniques
+<h1 align="center">Archiver&nbsp;&nbsp;<code>RAG</code></h1>
+
+<p align="center">
+  <em>A finding aid for your knowledge graph</em>
+</p>
+
+<p align="center">
+  The agent-agnostic memory management system for your Obsidian vault
+</p>
 
 Archiver RAG turns your Obsidian vault into a live, queryable knowledge graph that any MCP-compatible AI agent can search, update, and reorganize — without ever leaving its native interface.
 
