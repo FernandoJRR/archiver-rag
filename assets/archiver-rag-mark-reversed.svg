@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Archiver RAG"><title>Archiver RAG</title>
+<rect x="50" y="30" width="42" height="58" fill="none" stroke="rgba(239,230,210,.4)" stroke-width="1.6"/>
+<rect x="41" y="37" width="42" height="58" fill="none" stroke="rgba(239,230,210,.6)" stroke-width="1.8"/>
+<rect x="31" y="44" width="44" height="58" fill="none" stroke="#efe6d2" stroke-width="2.4"/>
+<rect x="31" y="44" width="15" height="6" fill="#b5503c"/>
+<g stroke="#9a7a36" stroke-width="1.5" stroke-linecap="round"><line x1="45" y1="67" x2="63" y2="60"/><line x1="45" y1="67" x2="66" y2="83"/><line x1="45" y1="67" x2="44" y2="90"/></g>
+<circle cx="63" cy="60" r="2.4" fill="#efe6d2"/><circle cx="66" cy="83" r="2.4" fill="#efe6d2"/><circle cx="44" cy="90" r="2.4" fill="#efe6d2"/>
+<circle cx="45" cy="67" r="3.6" fill="#b5503c"/>
+</svg>

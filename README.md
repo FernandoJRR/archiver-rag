@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Archiver RAG" width="96" />
+  <img src="assets/archiver-rag-lockup.svg" alt="Archiver RAG" width="320" />
 </p>
-
-<h1 align="center">Archiver&nbsp;&nbsp;<code>RAG</code></h1>
 
 <p align="center">
   <em>A finding aid for your knowledge graph</em>
