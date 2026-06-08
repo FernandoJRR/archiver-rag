@@ -1,17 +1,10 @@
 ---
 name: archiver-rag
-description: >
-  ALWAYS invoke at the start of every task or question, before reading any files or using internal memory.
-  This skill enforces vault-first recall and storage using the archiver-rag MCP tools (search_vault, log_note,
-  get_connections, vault_status, move_notes, cluster_note, cluster_vault). The Obsidian vault is the primary
-  memory system — internal Claude memory is only a fallback when the vault returns no relevant results.
-  Also use explicitly when the user asks about vault health, reorganization, wikilinks, or clustering.
+description: Guide for using the archiver-rag MCP tools — semantic search, vault health, wikilink traversal, knowledge logging, and vault reorganization. Use when working with an Obsidian vault via the archiver-rag server.
 ---
 
 Overview:
-The archiver-rag MCP server exposes 7 tools for working with an Obsidian vault as a knowledge graph.
-**This skill must run at the start of every task** to check the vault before falling back to internal memory.
-$ARGUMENTS[0] is optional context about the current task.
+The archiver-rag MCP server exposes 7 tools for working with an Obsidian vault as a knowledge graph. This skill describes when and how to call each tool. $ARGUMENTS[0] is optional context about the current task.
 
 ## Memory priority rule
 
@@ -93,6 +86,7 @@ Returns array of chunks with `content`, `source`, `relevance_score`, `base_score
 
 When to use:
 - Always call before reading source files — vault context saves tokens
+- Always call before reading auto-memory files — vault is the primary source of truth
 - Pass `context_note` when the query is about a specific existing note
 - Lower `min_score` only if results are too sparse; raising it tightens precision
 
@@ -167,6 +161,7 @@ Filename format: `{vault}/{type}/{date}-{slug}.md`
 Collision-safe: appends `-1`, `-2` if name exists.
 
 When to use:
+- **Primary memory write path** — call this before writing to auto-memory files
 - After solving a non-trivial problem — offer to log a `lesson` or `decision`
 - Capture architectural decisions (`type=decision`)
 - Document surprising behavior or gotchas (`type=gotcha`)

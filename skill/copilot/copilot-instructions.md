@@ -28,6 +28,22 @@ Run `which archiver-rag` to confirm the executable path on your machine.
 
 ---
 
+## MCP boundary — MANDATORY
+
+**Only use the `archiver-rag` MCP server** for all vault operations listed below.
+
+> **NEVER use the `obsidian` MCP server** (mcpvault / `@bitbonsai/mcpvault`) for
+> any task in this workflow. The obsidian MCP is a separate raw file-access layer
+> (read/write/delete individual files). It is **not** a semantic search tool, it
+> does **not** understand the knowledge graph, and it will **not** maintain
+> wikilinks or index state. Using it instead of archiver-rag will silently break
+> the knowledge graph.
+>
+> Rule: if a tool name starts with `obsidian__` or comes from the `obsidian` MCP
+> server, do **not** call it for any task described in this skill.
+
+---
+
 ## Vault-first memory — MANDATORY
 
 **The Obsidian vault is the primary memory system. Your internal context is a
@@ -42,11 +58,17 @@ memory operation:
    read if the vault result is sufficient.
 3. **Before writing notes or memory anywhere else** — call `log_note` first. The
    vault entry is authoritative.
-4. **After solving any non-trivial problem** — call `log_note` with the right type
-   (`decision`, `lesson`, `gotcha`, `pattern`). Do not skip this step.
+4. **After any task that produced new knowledge** — call `log_note` immediately.
+   Do not offer, do not wait for the task to be "non-trivial". If you touched real
+   code, made a decision, or discovered something not already in the vault, write it.
+   The bar is low: a one-line lesson is better than silence.
+5. **When search_vault returns nothing relevant** — log the answer you found via
+   internal knowledge so the vault gap is filled for next time.
 
 Never skip `search_vault` to save time. A vault miss is fast; redundant guessing
 wastes context and diverges from the knowledge graph.
+Never skip `log_note` to save time. A vault write is fast; knowledge left in a
+session that ends is lost permanently. Reading and writing are symmetric.
 
 ## Rules
 
@@ -71,8 +93,18 @@ Recalling something?
 Saving something?
   1. log_note(title, content, type, tags) — vault is primary source of truth
 
-Finished a non-trivial task?
-  → log_note with an appropriate type (decision, lesson, gotcha, pattern)
+Write to the vault when any of these are true — fire immediately, not at task end:
+  1. search_vault returned nothing relevant AND you answered from internal knowledge
+     → log_note(type="lesson") with the answer — fill the gap while it's fresh
+  2. You made or discovered an architectural or design decision
+     → log_note(type="decision") now, not at the end of the session
+  3. You hit a non-obvious bug, workaround, or surprising behaviour
+     → log_note(type="gotcha") as soon as the root cause is clear
+  4. You found a reusable pattern (code structure, prompt shape, workflow)
+     → log_note(type="pattern")
+  5. The task is done and none of the above fired
+     → log_note(type="lesson") with a one-line summary
+     → only skip if the task was a single read-only lookup with zero new knowledge
 
 Considering vault reorganization?
   1. vault_status                    — current structure and health
