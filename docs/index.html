@@ -7,7 +7,7 @@
   <meta name="description" content="Turns your Obsidian vault into a live, queryable knowledge graph. Semantic search, auto-linking, and graph traversal — exposed as MCP tools any AI agent can use.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=Cinzel:wght@400;500&display=swap" rel="stylesheet">
   <style>
     /* ── Tokens ─────────────────────────────────────────────────────── */
     :root {
@@ -29,6 +29,7 @@
       --display:     "Fraunces", Georgia, serif;
       --body:        "Newsreader", Georgia, serif;
       --mono:        "IBM Plex Mono", "Courier New", monospace;
+      --inscription: "Cinzel", Georgia, serif;
     }
 
     /* ── Reset + base ───────────────────────────────────────────────── */
@@ -64,14 +65,7 @@
       text-transform: uppercase;
       color: var(--accent);
       margin-bottom: 1.25rem;
-    }
-    .acc::before {
-      content: '';
-      display: inline-block;
-      width: 46px; height: 1px;
-      background: var(--accent);
-      vertical-align: middle;
-      margin-right: 12px;
+      text-align: center;
     }
 
     /* ── Typography ─────────────────────────────────────────────────── */
@@ -84,7 +78,7 @@
       max-width: 14ch;
       margin-bottom: 1.25rem;
     }
-    h1 em { font-style: italic; color: var(--accent); font-weight: 300; }
+    h1 em { font-family: var(--inscription); font-style: normal; font-weight: 400; color: var(--accent); letter-spacing: -.02em; }
     h2 {
       font-family: var(--display);
       font-size: clamp(1.7rem, 3vw, 2.5rem);
@@ -155,10 +149,7 @@
       gap: 5rem; align-items: start;
     }
     .hero-left { position: relative; padding-top: 1.5rem; }
-    .hero-margin-rule {
-      position: absolute; left: -40px; top: 0; bottom: 0;
-      width: 1px; background: var(--accent); opacity: .22;
-    }
+    .hero-margin-rule { display: none; }
     .hero-ctas { display: flex; gap: 1rem; flex-wrap: wrap; }
     .hero-right { display: flex; flex-direction: column; align-items: center; gap: 2rem; }
     .hero-mark-primary { display: flex; justify-content: center; }
@@ -307,8 +298,8 @@
     .layer-card:hover { transform: translateY(-4px); box-shadow: 3px 8px 0 rgba(34,26,18,.09); }
     .layer-numeral {
       position: absolute; right: 12px; top: -8px;
-      font-family: var(--display); font-size: 5.5rem;
-      font-weight: 300; font-style: italic;
+      font-family: var(--inscription); font-size: 5.5rem;
+      font-weight: 400; font-style: normal; letter-spacing: -.02em;
       color: var(--paper-2); line-height: 1; user-select: none;
       pointer-events: none;
     }
@@ -588,7 +579,7 @@
 
       <div class="hero-left">
         <div class="hero-margin-rule" aria-hidden="true"></div>
-        <p class="acc">Acc. No. 0001 · MCP Memory System</p>
+        <p class="acc">Semantic memory for your Obsidian vault</p>
         <h1>A <em>finding aid</em> for your knowledge graph</h1>
         <p class="lede">Turns your Obsidian vault into a live, queryable knowledge graph. Connect it once — every agent you use gets semantic search, wikilink traversal, and vault health through standard MCP tools.</p>
         <div class="hero-ctas">
@@ -634,7 +625,7 @@
 <section id="pipeline">
   <div class="container">
     <div class="pipeline-head reveal">
-      <p class="acc">Acc. No. 0002 · Ingest Pipeline</p>
+      <p class="acc">How your notes become searchable</p>
       <h2>From save to searchable in seconds</h2>
       <p class="pipeline-sub">A background file watcher fires on every Obsidian save, re-chunks the note, and updates the vector index — no manual step required.</p>
     </div>
@@ -670,7 +661,7 @@
 <section id="retrieval">
   <div class="container">
     <div class="reveal">
-      <p class="acc">Acc. No. 0003 · Retrieval Architecture</p>
+      <p class="acc">How search ranks what matters</p>
       <h2>Three layers of signal, not one</h2>
       <p class="lede" style="margin-bottom:3rem;">Semantic similarity is the entry point. Graph proximity and hub importance shape the final ranking.</p>
     </div>
@@ -701,7 +692,7 @@
 <section id="features">
   <div class="container">
     <div class="reveal">
-      <p class="acc">Acc. No. 0004 · Feature Reference</p>
+      <p class="acc">Everything the service can do</p>
       <h2>What it can do</h2>
       <p class="lede" style="margin-bottom:3rem;">Six capabilities built into the same background service.</p>
     </div>
@@ -746,7 +737,7 @@
     <div class="graph-grid">
 
       <div class="graph-copy reveal">
-        <p class="acc">Acc. No. 0005 · Knowledge Graph</p>
+        <p class="acc">Structure your vault understands</p>
         <h2>Notes are nodes.<br>Wikilinks are edges.</h2>
         <p>archiver-rag understands the structure of your vault, not just the text inside it. Every <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">[[link]]</code> is a graph edge that shapes search, clustering, and auto-linking.</p>
         <p>Frontmatter is first-class: <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">type</code>, <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">tags</code>, and <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">related</code> are stored as filterable metadata on every chunk.</p>
@@ -804,7 +795,7 @@
 <section id="tools">
   <div class="container">
     <div class="reveal">
-      <p class="acc">Acc. No. 0006 · MCP Tool Ledger</p>
+      <p class="acc">Tools exposed to any MCP agent</p>
       <h2>Seven tools. Any agent.</h2>
       <p class="lede" style="margin-bottom:2.5rem;">Every capability is a discrete MCP tool — discoverable, composable, and callable from any agent that speaks stdio MCP.</p>
     </div>
@@ -865,12 +856,16 @@
     <div class="install-grid">
 
       <div class="install-copy reveal">
-        <p class="acc">Acc. No. 0007 · Installation</p>
-        <h2>Up and running in four commands</h2>
-        <p class="lede">Edit a note in Obsidian, save it, and it's indexed and auto-linked within seconds.</p>
+        <p class="acc">Up and running in minutes</p>
+        <h2>Up and running in three commands</h2>
+        <p class="lede">Install the package, point it at your vault, then register it as an MCP server — done.</p>
         <div class="copy-block">
           <code>pipx install archiver-rag</code>
           <button class="copy-btn" data-copy="pipx install archiver-rag">copy</button>
+        </div>
+        <div class="copy-block">
+          <code>archiver-rag init</code>
+          <button class="copy-btn" data-copy="archiver-rag init">copy</button>
         </div>
         <div class="copy-block">
           <code>claude mcp add --scope user archiver-rag $(which archiver-rag) serve</code>
@@ -892,22 +887,21 @@
           </div>
           <div class="term-body">
 <span class="tp">$</span> <span class="tc">pipx install archiver-rag</span>
-<span class="tm">  installed package archiver-rag</span>
 <span class="ts">  ✓ archiver-rag is now on your PATH</span>
 
 <span class="tp">$</span> <span class="tc">archiver-rag init</span>
-  <span class="tm">vault path:</span> <span class="tc">~/Documents/MyVault</span>
-  <span class="tm">autostart on login:</span> <span class="tc">yes</span>
-<span class="ts">  ✓ config saved</span>
-<span class="ts">  ✓ vault indexed</span>
-<span class="ts">  ✓ service registered</span>
+  <span class="tm">Path to your Obsidian vault:</span> <span class="tc">~/Documents/MyVault</span>
+  <span class="tm">Start automatically on login? [y/n]:</span> <span class="tc">y</span>
+<span class="ts">  ✓ Config saved → ~/.archiver-rag/config.json</span>
+<span class="ts">  ✓ Indexed 47 notes, 203 chunks</span>
+<span class="ts">  ✓ Watcher service registered (launchd)</span>
 
 <span class="tp">$</span> <span class="tc">claude mcp add --scope user \</span>
 <span class="targ">    archiver-rag $(which archiver-rag) serve</span>
 <span class="ts">  ✓ MCP server registered</span>
 
 <span class="tp">$</span> <span class="tc">archiver-rag status</span>
-<span class="ts">  ✓ running</span>
+<span class="ts">  ✓ running · 47 notes indexed</span>
           </div>
         </div>
       </div>
@@ -989,19 +983,18 @@
 
   // ── Hero terminal typewriter ───────────────────────────────────────
   const HERO_LINES = [
-    { text: 'archiver-rag init',                                isCmd: true },
-    { text: '🔍 Archiver RAG Setup',                            cls: 'tm' },
-    { text: '',                                                  cls: '' },
-    { text: 'Path to your Obsidian vault: ~/Documents/MyVault', cls: 'tc' },
-    { text: 'Start automatically on login? [y/n] (y): y',       cls: 'tc' },
-    { text: '✅ Config saved',                                   cls: 'ts' },
-    { text: '📚 Indexing vault... done (47 notes, 203 chunks)',  cls: 'tc' },
-    { text: '✅ Registered archiver-rag MCP in Claude Code',    cls: 'ts' },
-    { text: '✅ Service registered with launchd',               cls: 'ts' },
-    { text: '✅ Setup complete!',                               cls: 'ts' },
-    { text: '',                                                  cls: '' },
-    { text: 'archiver-rag status',                              isCmd: true },
-    { text: '✅ Running',                                       cls: 'ts' },
+    { text: 'archiver-rag init',                                        isCmd: true },
+    { text: 'Path to your Obsidian vault: ~/Documents/MyVault',         cls: 'tm' },
+    { text: 'Start automatically on login? [y/n]: y',                   cls: 'tm' },
+    { text: '✓ Config saved → ~/.archiver-rag/config.json',             cls: 'ts' },
+    { text: '✓ Indexed 47 notes, 203 chunks',                           cls: 'ts' },
+    { text: '✓ Watcher service registered (launchd)',                   cls: 'ts' },
+    { text: '',                                                          cls: '' },
+    { text: 'claude mcp add --scope user archiver-rag $(which archiver-rag) serve', isCmd: true },
+    { text: '✓ MCP server registered',                                  cls: 'ts' },
+    { text: '',                                                          cls: '' },
+    { text: 'archiver-rag status',                                      isCmd: true },
+    { text: '✓ running · 47 notes indexed',                             cls: 'ts' },
   ];
 
   const heroOut = document.getElementById('hero-term-out');
