@@ -60,10 +60,12 @@ The file watcher runs as a background service. Edit a note in Obsidian, save it,
 ## Installation
 
 ```bash
-pipx install --editable .
+pipx install archiver-rag
 ```
 
-> Use `pipx`, not `pip install -e .` — pipx creates an isolated environment and exposes the CLI globally on `PATH`, which is required for MCP registration to find the correct executable.
+> Use `pipx`, not `pip install` — pipx creates an isolated environment and exposes the CLI globally on `PATH`, which is required for MCP registration to find the correct executable.
+
+For local development from a clone of this repo, use `pipx install --editable .` instead.
 
 ---
 
