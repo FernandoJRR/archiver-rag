@@ -45,7 +45,7 @@ def get_connections(note: str, depth: int = 1) -> dict:
         result["all_connected"].update(layer_in)
 
         # Next layer excludes already visited nodes
-        current_layer = next_layer - result["all_connected"] | next_layer
+        current_layer = next_layer - result["all_connected"]
 
     # Remove root note from all_connected if it crept in
     result["all_connected"].discard(note_stem)

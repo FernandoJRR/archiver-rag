@@ -5,11 +5,17 @@ from pathlib import Path
 from archiver_rag.utils import get_vault_path
 
 
+# Generous enough that real titles are never clipped, far under the 255-byte
+# filesystem limit. A truncated slug makes the filename disagree with the note's
+# identity, which is what wikilinks are written against.
+SLUG_MAX = 120
+
+
 def _slugify(title: str) -> str:
     title = title.lower().strip()
     title = re.sub(r'[^\w\s-]', '', title)
     title = re.sub(r'[\s_]+', '-', title)
-    return title[:60]
+    return title[:SLUG_MAX]
 
 
 def _build_frontmatter(type: str, tags: list[str], related_notes: list[str]) -> str:
@@ -19,8 +25,9 @@ def _build_frontmatter(type: str, tags: list[str], related_notes: list[str]) -> 
     if related_notes:
         lines.append("related:")
         for note in related_notes:
-            wrapped = note if note.startswith("[[") else f"[[{note}]]"
-            lines.append(f'  - "{wrapped}"')
+            # Store bare name in YAML (no [[brackets]]) — body ## Related carries the wikilinks
+            name = re.sub(r'^\[\[|\]\]$', '', note)
+            lines.append(f"  - {name}")
     lines.append("---")
     return "\n".join(lines)
 
@@ -28,7 +35,9 @@ def _build_frontmatter(type: str, tags: list[str], related_notes: list[str]) -> 
 def _resolve_filepath(vault: Path, type: str, title: str) -> Path:
     folder = vault / type
     folder.mkdir(parents=True, exist_ok=True)
-    base = f"{date.today().isoformat()}-{_slugify(title)}"
+    # No date prefix: the filename is the note's identity, and wikilinks are
+    # written against it. The date lives in frontmatter, where it stays queryable.
+    base = _slugify(title)
     filepath = folder / f"{base}.md"
     counter = 1
     while filepath.exists():

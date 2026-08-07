@@ -5,15 +5,14 @@ from archiver_rag.const import WIKILINK_RE
 
 
 def _build_adjacency(vault: Path) -> dict[str, set[str]]:
-    all_stems = {
-        n.stem for n in vault.rglob("*.md")
+    real_notes = [
+        n for n in vault.rglob("*.md")
         if not any(p.startswith(".") for p in n.parts)
-    }
+    ]
+    all_stems = {n.stem for n in real_notes}
     adjacency: dict[str, set[str]] = {stem: set() for stem in all_stems}
 
-    for note in vault.rglob("*.md"):
-        if any(p.startswith(".") for p in note.parts):
-            continue
+    for note in real_notes:
         try:
             content = note.read_text(encoding="utf-8", errors="ignore")
             stem = note.stem

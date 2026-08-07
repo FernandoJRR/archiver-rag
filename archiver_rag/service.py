@@ -25,7 +25,7 @@ def setup_service():
     <key>ProgramArguments</key>
     <array>
         <string>{exe}</string>
-        <string>_watch</string>
+        <string>watch</string>
         <string>{config['vault_path']}</string>
     </array>
     <key>RunAtLoad</key>
@@ -50,7 +50,7 @@ Description=Archiver RAG Watcher
 After=network.target
 
 [Service]
-ExecStart={exe} _watch {config['vault_path']}
+ExecStart={exe} watch {config['vault_path']}
 Restart=always
 StandardOutput=journal
 StandardError=journal

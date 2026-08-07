@@ -8,14 +8,26 @@ def search_vault(
     n_results: int = 3,
     min_score: float = 0.35,
     context_note: str | None = None,
+    type: str | None = None,
+    tags: list[str] | None = None,
 ) -> list[dict]:
     query_vector = embed([query])[0]
 
-    results = collection.query(
-        query_embeddings=[query_vector],
-        n_results=n_results,
-        include=["documents", "metadatas", "distances"]
-    )
+    # Pre-filter by type via ChromaDB where clause (tags are comma-strings, post-filtered below)
+    where: dict | None = {"folder": {"$eq": type}} if type is not None else None
+
+    # Fetch extra candidates when tag post-filtering will trim results
+    fetch_n = n_results * 3 if tags else n_results
+
+    query_kwargs: dict = {
+        "query_embeddings": [query_vector],
+        "n_results": fetch_n,
+        "include": ["documents", "metadatas", "distances"],
+    }
+    if where:
+        query_kwargs["where"] = where
+
+    results = collection.query(**query_kwargs)  # type: ignore[arg-type]
 
     documents = ((results.get("documents") or [[]])[0]) or []
     metadatas = ((results.get("metadatas") or [[]])[0]) or []
@@ -24,11 +36,20 @@ def search_vault(
     if not documents:
         return []
 
-    return rerank(
+    reranked = rerank(
         docs=documents,
         metas=metadatas,
         dists=distances,
         query_note=context_note,
         min_score=min_score,
-        n_results=n_results,
+        n_results=fetch_n,
     )
+
+    if tags:
+        tag_set = {t.strip().lower() for t in tags}
+        reranked = [
+            r for r in reranked
+            if tag_set & {t.strip().lower() for t in r.get("tags", "").split(",") if t.strip()}
+        ]
+
+    return reranked[:n_results]

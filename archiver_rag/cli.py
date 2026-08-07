@@ -49,6 +49,20 @@ def index(vault_path: str = typer.Argument(None, help="Path to vault (uses confi
     print("[green]✅ Done![/green]")
 
 @app.command()
+def sync(vault_path: str = typer.Argument(None, help="Path to vault (uses config if omitted)")):
+    """Sync only new or modified notes — faster than index"""
+    from archiver_rag.core.ingest import sync_vault
+    from archiver_rag.init_cmd import load_config
+    path = vault_path or load_config()["vault_path"]
+    print(f"[yellow]Syncing {path}...[/yellow]")
+    result = sync_vault(path)
+    print(
+        f"[green]✅ Sync complete:[/green] "
+        f"[bold]{result['indexed']}[/bold] ingested, "
+        f"[dim]{result['up_to_date']} up-to-date[/dim]"
+    )
+
+@app.command()
 def search(query: str = typer.Argument(..., help="Search query")):
     """Search the vault index directly"""
     from archiver_rag.core.embedder import embed

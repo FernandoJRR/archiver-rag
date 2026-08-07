@@ -97,30 +97,36 @@ def ingest_file(filepath: str):
     ]
 
     vectors = embed(contextualized)
-    filename = note.name
+
+    try:
+        source = str(note.relative_to(Path(vault)))
+    except ValueError:
+        source = note.name
 
     # Step 2: count incoming links for hub boost
     incoming_count = _count_incoming_links(note, Path(vault))
+    mtime = int(os.path.getmtime(filepath))
 
     #------------------------------------------------
-    collection.delete(where={"source": filename})
+    collection.delete(where={"source": source})
 
     collection.add(
         ids=[str(uuid.uuid4()) for _ in chunks],
         embeddings=vectors,
         documents=chunks,
         metadatas=[{
-            "source": filename,
+            "source": source,
             "path": filepath,
             "folder": folder,
             "tags": ",".join(tags),
             "links": ",".join(links),
             "incoming_count": incoming_count,
-            "title": title
+            "title": title,
+            "mtime": mtime,
         } for _ in chunks]
     )
 
-    print(f"Indexed {len(chunks)} chunks from {filename}")
+    print(f"Indexed {len(chunks)} chunks from {source}")
 
 def ingest_vault(vault_path: str):
     for root, dirs, files in os.walk(vault_path):
@@ -130,6 +136,42 @@ def ingest_vault(vault_path: str):
         for file in files:
             if file.endswith(".md"):
                 ingest_file(os.path.join(root, file))
+
+def sync_vault(vault_path: str) -> dict:
+    """Ingest only notes that are missing from or staler than the ChromaDB index."""
+    result = collection.get(include=["metadatas"])
+    indexed: dict[str, float] = {}
+    for meta in result["metadatas"]:
+        source = meta.get("source")
+        if not source or source in indexed:
+            continue
+        mtime = meta.get("mtime")
+        if mtime is not None:
+            indexed[source] = float(mtime)
+
+    ingested = 0
+    up_to_date = 0
+
+    for root, dirs, files in os.walk(vault_path):
+        dirs[:] = [d for d in dirs if d != ".obsidian"]
+        for file in files:
+            if not file.endswith(".md"):
+                continue
+            filepath = os.path.join(root, file)
+            try:
+                source = str(Path(filepath).relative_to(Path(vault_path)))
+            except ValueError:
+                source = file
+
+            file_mtime = int(os.path.getmtime(filepath))
+
+            if source not in indexed or file_mtime > indexed[source]:
+                ingest_file(filepath)
+                ingested += 1
+            else:
+                up_to_date += 1
+
+    return {"indexed": ingested, "up_to_date": up_to_date}
 
 if __name__ == "__main__":
     import sys

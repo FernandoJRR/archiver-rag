@@ -6,6 +6,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from archiver_rag.core.ingest import ingest_file
 from archiver_rag.core.db import collection
+from archiver_rag.utils import get_vault_path
 import os
 
 from archiver_rag.graph.linker import auto_link
@@ -67,19 +68,26 @@ class VaultHandler(FileSystemEventHandler):
         path = str(event.src_path)
         if event.is_directory or not path.endswith(".md"):
             return
-        filename = Path(path).name
-        print(f"File deleted: {filename}")
-        collection.delete(where={"source": filename})
+        try:
+            source = str(Path(path).relative_to(get_vault_path()))
+        except ValueError:
+            source = Path(path).name
+        print(f"File deleted: {source}")
+        collection.delete(where={"source": source})
 
     def on_moved(self, event):
         src = str(event.src_path)
         dst = str(event.dest_path)
         if not src.endswith(".md"):
             return
-        old_filename = Path(src).name
-        collection.delete(where={"source": old_filename})
-        print(f"File renamed/moved: {old_filename} → {event.dest_path}")
+        try:
+            old_source = str(Path(src).relative_to(get_vault_path()))
+        except ValueError:
+            old_source = Path(src).name
+        collection.delete(where={"source": old_source})
+        print(f"File renamed/moved: {old_source} → {event.dest_path}")
         ingest_file(dst)
+        auto_link(dst)
 
 def shutdown(observer, signum, frame):
     print("\nStopping Watcher")

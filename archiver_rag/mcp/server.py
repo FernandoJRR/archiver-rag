@@ -33,6 +33,15 @@ async def list_tools() -> list[Tool]:
                     "context_note": {
                         "type": "string",
                         "description": "Note name or path used as graph context (e.g. 'AuditTrail'). Boosts results directly connected via wikilinks."
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Filter by note category/folder, e.g. 'decision', 'gotcha', 'pattern', 'lesson', 'reference'."
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Filter to notes containing any of these tags. Matched case-insensitively; any overlap returns the note."
                     }
                 },
                 "required": ["query"]
@@ -159,6 +168,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             n_results=arguments.get("n_results", 3),
             min_score=arguments.get("min_score", 0.35),
             context_note=arguments.get("context_note"),
+            type=arguments.get("type"),
+            tags=arguments.get("tags"),
         )
         return [TextContent(type="text", text=json.dumps(reranked, indent=2))]
     elif name == "vault_status":

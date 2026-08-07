@@ -13,18 +13,21 @@ def _get_existing_links(content: str) -> set[str]:
 
 def _append_links_section(content: str, new_links: list[str]) -> str:
     """
-    Append a ## Related section at the bottom of the note.
-    If section already exists, update it.
+    Append or update the ## Related section, merging with any existing links.
+    Preserves manually-specified links; only appends new semantic candidates.
     """
-    links_text = "\n".join(f"- [[{link}]]" for link in new_links)
-    section = f"\n\n## Related\n{links_text}"
+    related_pattern = re.compile(r'\n\n## Related\n(.*?)$', re.DOTALL)
+    match = related_pattern.search(content)
 
-    # If Related section already exists, replace it
-    related_pattern = re.compile(r'\n\n## Related\n.*$', re.DOTALL)
-    if related_pattern.search(content):
+    if match:
+        existing_section_links = [m.strip() for m in WIKILINK_RE.findall(match.group(1))]
+        merged = existing_section_links + [l for l in new_links if l not in existing_section_links]
+        links_text = "\n".join(f"- [[{link}]]" for link in merged)
+        section = f"\n\n## Related\n{links_text}"
         return related_pattern.sub(section, content)
 
-    return content + section
+    links_text = "\n".join(f"- [[{link}]]" for link in new_links)
+    return content + f"\n\n## Related\n{links_text}"
 
 
 def auto_link(filepath: str, min_score: float = 0.55, max_links: int = 5):
