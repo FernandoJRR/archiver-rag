@@ -5,12 +5,24 @@ from archiver_rag.utils import get_vault_path
 
 
 def _update_wikilinks(vault: Path, old_stem: str, new_stem: str):
-    """Rewrite [[old_stem]] to [[new_stem]] across entire vault"""
+    """Rewrite [[old_stem]], [[old_stem#heading]], and [[old_stem|alias]] across vault.
+
+    Also rewrites bare names in YAML related: lists (lines like "  - old_stem").
+    Left code-unaware deliberately: a rename should also update documented examples
+    of the old link. See archiver_rag/wikilinks.py for context-aware extraction.
+    """
     if old_stem == new_stem:
         return
 
-    pattern = re.compile(
-        rf'\[\[{re.escape(old_stem)}(\|[^\]]+)?\]\]'
+    # Matches [[old_stem]], [[old_stem#heading]], [[old_stem|alias]],
+    # [[old_stem#heading|alias]] — any combination of optional tail fragments.
+    link_pattern = re.compile(
+        rf'\[\[{re.escape(old_stem)}((?:#[^\]|]+)?(?:\|[^\]]+)?)\]\]'
+    )
+    # Bare name in YAML related: block: "  - old_stem" (exact word, no brackets)
+    yaml_related_pattern = re.compile(
+        rf'^([ \t]*-[ \t]+){re.escape(old_stem)}([ \t]*)$',
+        re.MULTILINE,
     )
 
     for md_file in vault.rglob("*.md"):
@@ -19,11 +31,12 @@ def _update_wikilinks(vault: Path, old_stem: str, new_stem: str):
             if old_stem not in content:
                 continue
 
-            def replace_link(m):
-                alias = m.group(1) or ""
-                return f"[[{new_stem}{alias}]]"
-
-            new_content = pattern.sub(replace_link, content)
+            new_content = link_pattern.sub(
+                lambda m: f"[[{new_stem}{m.group(1)}]]", content
+            )
+            new_content = yaml_related_pattern.sub(
+                lambda m: f"{m.group(1)}{new_stem}{m.group(2)}", new_content
+            )
             if new_content != content:
                 md_file.write_text(new_content, encoding="utf-8")
         except Exception:
