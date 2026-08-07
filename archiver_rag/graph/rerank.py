@@ -40,6 +40,7 @@ def rerank(
             "content": doc,
             "source": str(meta["source"]),
             "folder": str(meta.get("folder", "")),
+            "type": str(meta.get("type", "")),
             "tags": str(meta.get("tags", "")),
             "title": str(meta.get("title", "")),
             "relevance_score": final_score,
