@@ -63,6 +63,19 @@ def sync(vault_path: str = typer.Argument(None, help="Path to vault (uses config
     )
 
 @app.command()
+def prune(vault_path: str = typer.Argument(None, help="Path to vault (uses config if omitted)")):
+    """Remove index chunks whose source file no longer exists on disk"""
+    from archiver_rag.core.ingest import prune_orphans
+    from archiver_rag.init_cmd import load_config
+    path = vault_path or load_config()["vault_path"]
+    count = prune_orphans(path)
+    if count:
+        print(f"[green]✅ Pruned {count} orphaned source(s)[/green]")
+    else:
+        print("[dim]No orphans found[/dim]")
+
+
+@app.command()
 def search(query: str = typer.Argument(..., help="Search query")):
     """Search the vault index directly"""
     from archiver_rag.core.embedder import embed

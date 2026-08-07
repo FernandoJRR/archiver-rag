@@ -3,12 +3,15 @@ from pathlib import Path
 from archiver_rag.core.embedder import embed
 from archiver_rag.core.db import collection
 from archiver_rag.utils import get_vault_path
-from archiver_rag.const import WIKILINK_RE
+from archiver_rag.wikilinks import extract_wikilinks
 
 
 def _get_existing_links(content: str) -> set[str]:
-    """Extract all existing [[wikilinks]] from note content"""
-    return {m.strip() for m in WIKILINK_RE.findall(content)}
+    """Extract all existing [[wikilinks]] from note content.
+    Deliberately permissive (skip_code=False): if the masker wrongly classifies a real
+    link as code, auto_link would consider it absent and write a duplicate into the note.
+    """
+    return set(extract_wikilinks(content, skip_code=False))
 
 
 def _append_links_section(content: str, new_links: list[str]) -> str:

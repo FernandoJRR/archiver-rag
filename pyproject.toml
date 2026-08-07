@@ -15,10 +15,18 @@ dependencies = [
     "mcp",
     "typer",
     "rich",
+    "pyyaml",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
 
 [project.scripts]
 archiver-rag = "archiver_rag.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["archiver_rag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["vault: requires real vault (opt-in, set ARCHIVER_RAG_VAULT)"]

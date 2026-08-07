@@ -1,7 +1,7 @@
 from pathlib import Path
 from collections import Counter
 from archiver_rag.utils import get_vault_path
-from archiver_rag.const import WIKILINK_RE
+from archiver_rag.wikilinks import extract_wikilinks
 
 
 def _build_adjacency(vault: Path) -> dict[str, set[str]]:
@@ -16,8 +16,7 @@ def _build_adjacency(vault: Path) -> dict[str, set[str]]:
         try:
             content = note.read_text(encoding="utf-8", errors="ignore")
             stem = note.stem
-            for link in WIKILINK_RE.findall(content):
-                link = link.strip()
+            for link in extract_wikilinks(content):
                 if link != stem and link in all_stems:
                     adjacency[stem].add(link)
                     adjacency[link].add(stem)

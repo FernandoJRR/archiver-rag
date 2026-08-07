@@ -96,6 +96,10 @@ def move_notes(moves: list[dict]) -> dict:
                 "error": str(e)
             })
 
+    if succeeded:
+        from archiver_rag.core.ingest import prune_orphans
+        prune_orphans(str(vault))
+
     return {
         "moved": len(succeeded),
         "failed": len(failed),

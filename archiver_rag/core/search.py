@@ -13,8 +13,8 @@ def search_vault(
 ) -> list[dict]:
     query_vector = embed([query])[0]
 
-    # Pre-filter by type via ChromaDB where clause (tags are comma-strings, post-filtered below)
-    where: dict | None = {"folder": {"$eq": type}} if type is not None else None
+    # Pre-filter by frontmatter type: field (stable taxonomy, unlike folder which drifts with auto_cluster)
+    where: dict | None = {"type": {"$eq": type}} if type is not None else None
 
     # Fetch extra candidates when tag post-filtering will trim results
     fetch_n = n_results * 3 if tags else n_results

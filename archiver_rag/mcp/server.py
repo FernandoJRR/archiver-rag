@@ -36,7 +36,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "type": {
                         "type": "string",
-                        "description": "Filter by note category/folder, e.g. 'decision', 'gotcha', 'pattern', 'lesson', 'reference'."
+                        "description": "Filter by frontmatter type: field, e.g. 'decision', 'gotcha', 'pattern', 'lesson', 'reference'. Stable taxonomy — unaffected by auto_cluster folder moves."
                     },
                     "tags": {
                         "type": "array",

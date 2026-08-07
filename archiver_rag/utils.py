@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from collections import defaultdict
-from archiver_rag.const import WIKILINK_RE
+from archiver_rag.wikilinks import extract_wikilinks
 
 
 def get_vault_path() -> str:
@@ -18,7 +18,7 @@ def build_link_map(vault: Path) -> tuple[dict[str, list[str]], dict[str, list[st
         try:
             content = note.read_text(encoding="utf-8", errors="ignore")
             stem = note.stem
-            for link in [l.strip() for l in WIKILINK_RE.findall(content)]:
+            for link in extract_wikilinks(content):
                 if link != stem:
                     outgoing[stem].append(link)
                     incoming[link].append(stem)

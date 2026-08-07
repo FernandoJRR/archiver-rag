@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 from archiver_rag.utils import get_vault_path
-from archiver_rag.const import WIKILINK_RE
+from archiver_rag.wikilinks import extract_wikilinks
 
 def vault_status() -> dict:
     vault = Path(get_vault_path())
@@ -36,7 +36,7 @@ def vault_status() -> dict:
             no_frontmatter.append(rel)
 
         # Parse wikilinks
-        links = [l.strip() for l in WIKILINK_RE.findall(content)]
+        links = extract_wikilinks(content)
         link_map[note.stem] = links
 
         for link in links:
