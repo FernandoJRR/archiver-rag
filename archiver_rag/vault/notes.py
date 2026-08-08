@@ -132,7 +132,6 @@ def delete_notes(notes: list[str]) -> dict:
     """
     vault = Path(get_vault_path())
     trash_dir = vault / ".trash"
-    trash_dir.mkdir(exist_ok=True)
 
     deleted: list[str] = []
     errors: list[dict] = []
@@ -151,6 +150,10 @@ def delete_notes(notes: list[str]) -> dict:
         if not src.exists():
             errors.append({"source": note_rel, "error": "File not found"})
             continue
+
+        # Created only once something is actually going to move, so a call that
+        # deletes nothing leaves no stray directory behind.
+        trash_dir.mkdir(exist_ok=True)
 
         # Collision-safe flat name in .trash/ (Obsidian convention)
         trash_dest = trash_dir / src.name

@@ -39,3 +39,14 @@ def note_stems(vault: Path) -> set[str]:
 def is_hidden_path(path: Path) -> bool:
     """True if any path component starts with '.' (e.g. .trash, .obsidian, .git)."""
     return any(p.startswith(".") for p in path.parts)
+
+
+def log(msg: str) -> None:
+    """Print and flush.
+
+    The service redirects stdout to /tmp/archiver-rag.log, so Python block-buffers it
+    and `archiver-rag logs` can sit far behind reality — it showed an empty tail for
+    events that had already been processed, which sent a debugging session chasing
+    ghosts. Anything that runs inside the watcher process must log through here.
+    """
+    print(msg, flush=True)

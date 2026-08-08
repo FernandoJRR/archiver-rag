@@ -7,7 +7,7 @@ import uuid
 from archiver_rag.core.embedder import embed
 from archiver_rag.core.chunker import chunk
 from archiver_rag.core.db import collection
-from archiver_rag.utils import get_vault_path, build_link_map
+from archiver_rag.utils import get_vault_path, build_link_map, log
 from archiver_rag.wikilinks import extract_wikilinks
 
 def _extract_frontmatter(content: str) -> tuple[dict, str]:
@@ -126,7 +126,7 @@ def ingest_file(filepath: str):
         } for _ in chunks]
     )
 
-    print(f"Indexed {len(chunks)} chunks from {source}")
+    log(f"Indexed {len(chunks)} chunks from {source}")
 
 def prune_orphans(vault_path: str) -> int:
     """Delete chunks whose source file no longer exists on disk. Returns count of pruned sources."""
@@ -147,7 +147,7 @@ def prune_orphans(vault_path: str) -> int:
 
     for src in orphaned:
         collection.delete(where={"source": src})
-        print(f"Pruned orphan: {src}")
+        log(f"Pruned orphan: {src}")
 
     return len(orphaned)
 

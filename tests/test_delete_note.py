@@ -78,6 +78,21 @@ def test_path_traversal_rejected(tmp_vault):
     assert result["errors"][0]["error"] == "Path outside vault boundary"
 
 
+# ── .trash/ is only created when something actually moves ────────────────────
+
+def test_failed_delete_leaves_no_trash_dir(tmp_vault):
+    """A call that deletes nothing must not mutate the vault."""
+    result = _delete(tmp_vault, ["../escape.md", "missing.md"])
+    assert result["deleted"] == []
+    assert not (tmp_vault.root / ".trash").exists(), "empty .trash/ created by a no-op delete"
+
+
+def test_successful_delete_creates_trash_dir(tmp_vault):
+    tmp_vault.write("real.md", "# Real")
+    _delete(tmp_vault, ["real.md"])
+    assert (tmp_vault.root / ".trash" / "real.md").exists()
+
+
 # ── file not found ────────────────────────────────────────────────────────────
 
 def test_missing_note_error(tmp_vault):

@@ -6,7 +6,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from archiver_rag.core.ingest import ingest_file
 from archiver_rag.core.db import collection
-from archiver_rag.utils import get_vault_path, is_hidden_path
+from archiver_rag.utils import get_vault_path, is_hidden_path, log as _log
 import os
 
 from archiver_rag.graph.linker import auto_link
@@ -15,6 +15,18 @@ _new_notes_since_cluster = 0
 
 # How long to wait for a "deleted" file to reappear before believing the delete.
 DELETE_SETTLE_SECONDS = 1.0
+
+
+def _is_indexed(source: str) -> bool:
+    """True if ChromaDB already holds chunks for this vault-relative source.
+
+    Used to tell a brand-new note from a save of an existing one. Errors resolve to
+    True: clustering moves files, so uncertainty must never trigger it.
+    """
+    try:
+        return bool(collection.get(where={"source": source}, limit=1).get("ids"))
+    except Exception:
+        return True
 
 
 def _is_spurious_delete(path: Path, settle: float = DELETE_SETTLE_SECONDS) -> bool:
@@ -50,42 +62,62 @@ def _get_cluster_config() -> tuple[bool, int]:
 
 
 class VaultHandler(FileSystemEventHandler):
-    def on_created(self, event):
+    def _maybe_cluster(self, path: str) -> None:
+        """Auto-place a newly created note, or re-cluster once enough have accumulated.
+
+        Only ever call this for genuinely NEW notes. It moves files, and `on_moved`
+        fires on every save, so running it on edits would relocate notes as you type.
+        """
         global _new_notes_since_cluster
+        auto_cluster, threshold = _get_cluster_config()
+        if not auto_cluster:
+            return
+
+        from archiver_rag.graph.clustering import cluster_note, cluster_vault, apply_clusters
+        from archiver_rag.vault.reorganize import move_notes
+
+        suggestion = cluster_note(Path(path).name)
+        target = suggestion.get("suggested_folder")
+        if target:
+            # Already where clustering wants it. Without this the handler kept
+            # re-issuing a move onto the note's own path — move_notes rejects it as
+            # "destination already exists", but each attempt still logged a bogus
+            # "Auto-placed" and re-triggered ingest + auto_link.
+            if Path(path).parent.name == target:
+                return
+            vault = Path(get_vault_path())
+            try:
+                src = str(Path(path).relative_to(vault))
+            except ValueError:
+                return
+            result = move_notes([{"source": src, "destination": f"{target}/{Path(path).name}"}])
+            if result.get("moved"):
+                _log(f"Auto-placed {Path(path).name} → {target}/")
+            return
+
+        _new_notes_since_cluster += 1
+        if _new_notes_since_cluster >= threshold:
+            _new_notes_since_cluster = 0
+            _log("Auto-clustering vault...")
+            result = cluster_vault(min_cluster_size=2)
+            if result["clusters"]:
+                apply_clusters(result["clusters"])
+                _log(f"Clustered into {result['total_clusters']} groups")
+
+    def on_created(self, event):
         path = str(event.src_path)
         if event.is_directory or not path.endswith(".md") or is_hidden_path(Path(path)):
             return
-        print(f"New file detected: {path}")
+        _log(f"New file detected: {path}")
         ingest_file(path)
         auto_link(path)
-
-        auto_cluster, threshold = _get_cluster_config()
-        if auto_cluster:
-            from archiver_rag.graph.clustering import cluster_note, cluster_vault, apply_clusters
-            from archiver_rag.vault.reorganize import move_notes
-            from archiver_rag.utils import get_vault_path
-            suggestion = cluster_note(Path(path).name)
-            if suggestion.get("suggested_folder"):
-                vault = Path(get_vault_path())
-                src = str(Path(path).relative_to(vault))
-                dst = f"{suggestion['suggested_folder']}/{Path(path).name}"
-                move_notes([{"source": src, "destination": dst}])
-                print(f"Auto-placed {Path(path).name} → {suggestion['suggested_folder']}/")
-            else:
-                _new_notes_since_cluster += 1
-                if _new_notes_since_cluster >= threshold:
-                    _new_notes_since_cluster = 0
-                    print("Auto-clustering vault...")
-                    result = cluster_vault(min_cluster_size=2)
-                    if result["clusters"]:
-                        apply_clusters(result["clusters"])
-                        print(f"Clustered into {result['total_clusters']} groups")
+        self._maybe_cluster(path)
 
     def on_modified(self, event):
         path = str(event.src_path)
         if event.is_directory or not path.endswith(".md") or is_hidden_path(Path(path)):
             return
-        print(f"File modified: {event.src_path}")
+        _log(f"File modified: {path}")
         ingest_file(path)
         auto_link(path)
 
@@ -100,12 +132,12 @@ class VaultHandler(FileSystemEventHandler):
             source = str(Path(path).relative_to(vault_path))
         except ValueError:
             source = Path(path).name
-        print(f"File deleted: {source}")
+        _log(f"File deleted: {source}")
         collection.delete(where={"source": source})
         from archiver_rag.vault.notes import sweep_dead_links
         sweep_result = sweep_dead_links(Path(vault_path), [Path(path).stem])
         if sweep_result["swept"]:
-            print(f"Swept links in: {', '.join(sweep_result['swept'])}")
+            _log(f"Swept links in: {', '.join(sweep_result['swept'])}")
 
     def on_moved(self, event):
         """Handle renames, moves, and — critically — atomic saves.
@@ -135,9 +167,19 @@ class VaultHandler(FileSystemEventHandler):
             except ValueError:
                 old_source = Path(src).name
             collection.delete(where={"source": old_source})
-            print(f"File renamed/moved: {old_source} → {dst}")
+            _log(f"File renamed/moved: {old_source} → {dst}")
 
         if dst_is_note:
+            # Decide BEFORE ingesting, or the note we are about to index would always
+            # look pre-existing. An unindexed destination reached via a non-note source
+            # is a brand-new note written atomically — the only case that should
+            # cluster. Renames and ordinary saves must not move files.
+            try:
+                dst_source = str(Path(dst).relative_to(vault_path))
+            except ValueError:
+                dst_source = Path(dst).name
+            is_new_note = not src_is_note and not _is_indexed(dst_source)
+
             ingest_file(dst)
             auto_link(dst)
             # Rewrite [[wikilinks]] that pointed at the old stem. Only when the
@@ -149,6 +191,8 @@ class VaultHandler(FileSystemEventHandler):
                 if old_stem != new_stem:
                     from archiver_rag.vault.reorganize import _update_wikilinks
                     _update_wikilinks(Path(vault_path), old_stem, new_stem)
+            if is_new_note:
+                self._maybe_cluster(dst)
             return
 
         # A note moved out of note-space entirely — into .trash/ (how Obsidian
@@ -157,7 +201,7 @@ class VaultHandler(FileSystemEventHandler):
         from archiver_rag.vault.notes import sweep_dead_links
         sweep_result = sweep_dead_links(Path(vault_path), [Path(src).stem])
         if sweep_result["swept"]:
-            print(f"Swept links in: {', '.join(sweep_result['swept'])}")
+            _log(f"Swept links in: {', '.join(sweep_result['swept'])}")
 
 def watch(vault_path: str):
     """Called by the service via `archiver-rag _watch`"""
@@ -177,7 +221,7 @@ def watch(vault_path: str):
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    print(f"Watching vault at {vault_path}...")
+    _log(f"Watching vault at {vault_path}...")
     while observer.is_alive():
         time.sleep(1)
 
