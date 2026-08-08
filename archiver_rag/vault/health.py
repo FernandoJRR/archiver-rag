@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from archiver_rag.utils import get_vault_path
+from archiver_rag.utils import get_vault_path, note_stems
 from archiver_rag.wikilinks import extract_wikilinks
 
 def vault_status() -> dict:
@@ -14,7 +14,7 @@ def vault_status() -> dict:
         if d.is_dir() and not any(p.startswith(".") for p in d.parts)
     ]
 
-    all_stems = {f.stem for f in all_notes}
+    all_stems = note_stems(vault)
 
     link_map = {}        # note stem → list of stems it links to
     incoming = {}        # note stem → count of notes linking to it

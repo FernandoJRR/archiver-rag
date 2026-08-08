@@ -6,7 +6,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from archiver_rag.core.ingest import ingest_file
 from archiver_rag.core.db import collection
-from archiver_rag.utils import get_vault_path
+from archiver_rag.utils import get_vault_path, is_hidden_path
 import os
 
 from archiver_rag.graph.linker import auto_link
@@ -28,7 +28,7 @@ class VaultHandler(FileSystemEventHandler):
     def on_created(self, event):
         global _new_notes_since_cluster
         path = str(event.src_path)
-        if event.is_directory or not path.endswith(".md"):
+        if event.is_directory or not path.endswith(".md") or is_hidden_path(Path(path)):
             return
         print(f"New file detected: {path}")
         ingest_file(path)
@@ -58,7 +58,7 @@ class VaultHandler(FileSystemEventHandler):
 
     def on_modified(self, event):
         path = str(event.src_path)
-        if event.is_directory or not path.endswith(".md"):
+        if event.is_directory or not path.endswith(".md") or is_hidden_path(Path(path)):
             return
         print(f"File modified: {event.src_path}")
         ingest_file(path)
@@ -66,34 +66,41 @@ class VaultHandler(FileSystemEventHandler):
 
     def on_deleted(self, event):
         path = str(event.src_path)
-        if event.is_directory or not path.endswith(".md"):
+        if event.is_directory or not path.endswith(".md") or is_hidden_path(Path(path)):
             return
+        vault_path = get_vault_path()
         try:
-            source = str(Path(path).relative_to(get_vault_path()))
+            source = str(Path(path).relative_to(vault_path))
         except ValueError:
             source = Path(path).name
         print(f"File deleted: {source}")
         collection.delete(where={"source": source})
+        from archiver_rag.vault.notes import sweep_dead_links
+        sweep_result = sweep_dead_links(Path(vault_path), [Path(path).stem])
+        if sweep_result["swept"]:
+            print(f"Swept links in: {', '.join(sweep_result['swept'])}")
 
     def on_moved(self, event):
         src = str(event.src_path)
         dst = str(event.dest_path)
-        if not src.endswith(".md"):
+        if event.is_directory or not src.endswith(".md") or is_hidden_path(Path(src)):
             return
+        vault_path = get_vault_path()
         try:
-            old_source = str(Path(src).relative_to(get_vault_path()))
+            old_source = str(Path(src).relative_to(vault_path))
         except ValueError:
             old_source = Path(src).name
         collection.delete(where={"source": old_source})
         print(f"File renamed/moved: {old_source} → {event.dest_path}")
         ingest_file(dst)
         auto_link(dst)
-
-def shutdown(observer, signum, frame):
-    print("\nStopping Watcher")
-    observer.stop()
-    observer.join()
-    sys.exit(0)
+        # Rewrite [[wikilinks]] across the vault that pointed at the old stem.
+        # Only needed when the filename changed (same-folder moves are stem-equal).
+        old_stem = Path(src).stem
+        new_stem = Path(dst).stem
+        if old_stem != new_stem:
+            from archiver_rag.vault.reorganize import _update_wikilinks
+            _update_wikilinks(Path(vault_path), old_stem, new_stem)
 
 def watch(vault_path: str):
     """Called by the service via `archiver-rag _watch`"""

@@ -186,6 +186,74 @@ def log_cmd(
     print(f"[green]✅ Created:[/green] {result['created']}")
 
 
+@app.command(name="delete")
+def delete_cmd(
+    notes: list[str] = typer.Argument(..., help="Notes to delete — relative paths or stems"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """Move notes to .trash/ and sweep inbound wikilinks (recoverable)"""
+    from archiver_rag.utils import get_vault_path, build_link_map
+    from archiver_rag.vault.notes import delete_notes as _delete_notes
+
+    vault = Path(get_vault_path())
+
+    # Resolve each argument to a vault-relative path
+    resolved: list[str] = []
+    not_found: list[str] = []
+    for note_arg in notes:
+        candidate = vault / note_arg
+        if candidate.exists() and candidate.suffix == ".md":
+            resolved.append(note_arg)
+        else:
+            stem = Path(note_arg).stem
+            found = [
+                f for f in vault.rglob(f"{stem}.md")
+                if not any(p.startswith(".") for p in f.relative_to(vault).parts)
+            ]
+            if found:
+                resolved.append(str(found[0].relative_to(vault)))
+            else:
+                not_found.append(note_arg)
+
+    for n in not_found:
+        print(f"[red]Not found:[/red] {n}")
+    if not resolved:
+        raise typer.Exit(1)
+
+    # Show impact before confirming
+    _, incoming = build_link_map(vault)
+    stems = [Path(r).stem for r in resolved]
+    linker_count = len({linker for stem in stems for linker in incoming.get(stem, [])})
+
+    print("\n[bold]Will move to .trash/ (recoverable):[/bold]")
+    for r in resolved:
+        print(f"  {r}")
+    if linker_count:
+        print(f"\n[yellow]{linker_count} note(s) link to these — ## Related sections will be swept.[/yellow]")
+
+    if not yes:
+        from rich.prompt import Confirm
+        confirm = Confirm.ask("\nProceed?", default=False)
+        if not confirm:
+            print("Aborted.")
+            raise typer.Exit()
+
+    result = _delete_notes(resolved)
+
+    for note_rel in result["deleted"]:
+        print(f"[green]Trashed:[/green] {note_rel}")
+    for swept in result["links_cleaned"]:
+        print(f"[dim]  swept links in:[/dim] {swept}")
+    for err in result["errors"]:
+        src = err.get("source", err.get("file", "?"))
+        print(f"[red]Error:[/red] {src} — {err['error']}")
+
+    if result["deleted"]:
+        print(f"\n[green]Moved {len(result['deleted'])} note(s) to .trash/[/green]")
+    if result["links_cleaned"]:
+        print(f"[green]Swept links in {len(result['links_cleaned'])} note(s)[/green]")
+
+
 @app.command()
 def cluster(
     apply: bool = typer.Option(False, "--apply", help="Move files automatically"),

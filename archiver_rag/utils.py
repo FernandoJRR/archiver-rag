@@ -25,3 +25,17 @@ def build_link_map(vault: Path) -> tuple[dict[str, list[str]], dict[str, list[st
         except Exception:
             continue
     return dict(outgoing), dict(incoming)
+
+
+def note_stems(vault: Path) -> set[str]:
+    """Stems of every real note on disk. Excludes dot-prefixed paths (.obsidian, .git)."""
+    return {
+        f.stem
+        for f in vault.rglob("*.md")
+        if not any(p.startswith(".") for p in f.parts)
+    }
+
+
+def is_hidden_path(path: Path) -> bool:
+    """True if any path component starts with '.' (e.g. .trash, .obsidian, .git)."""
+    return any(p.startswith(".") for p in path.parts)

@@ -26,6 +26,8 @@ def _update_wikilinks(vault: Path, old_stem: str, new_stem: str):
     )
 
     for md_file in vault.rglob("*.md"):
+        if any(p.startswith(".") for p in md_file.relative_to(vault).parts):
+            continue
         try:
             content = md_file.read_text(encoding="utf-8")
             if old_stem not in content:

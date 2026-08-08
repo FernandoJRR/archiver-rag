@@ -1,6 +1,6 @@
 from pathlib import Path
 from collections import Counter
-from archiver_rag.utils import get_vault_path
+from archiver_rag.utils import get_vault_path, note_stems
 from archiver_rag.wikilinks import extract_wikilinks
 
 
@@ -9,7 +9,7 @@ def _build_adjacency(vault: Path) -> dict[str, set[str]]:
         n for n in vault.rglob("*.md")
         if not any(p.startswith(".") for p in n.parts)
     ]
-    all_stems = {n.stem for n in real_notes}
+    all_stems = note_stems(vault)
     adjacency: dict[str, set[str]] = {stem: set() for stem in all_stems}
 
     for note in real_notes:

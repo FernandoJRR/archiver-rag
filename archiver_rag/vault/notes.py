@@ -1,8 +1,9 @@
 import re
 import json
+import shutil
 from datetime import date
 from pathlib import Path
-from archiver_rag.utils import get_vault_path
+from archiver_rag.utils import get_vault_path, build_link_map, note_stems
 
 
 # Generous enough that real titles are never clipped, far under the 255-byte
@@ -86,3 +87,94 @@ def log_note(
         "related": related_notes,
         "path": str(filepath),
     }
+
+
+def sweep_dead_links(vault: Path, stems: list[str]) -> dict:
+    """Prune dead wikilink targets from ## Related in every note that links to any stem in `stems`.
+
+    Called AFTER the target notes have already moved out of the vault (to .trash/ or elsewhere),
+    so note_stems(vault) correctly excludes them and _append_links_section prunes their entries.
+    """
+    from archiver_rag.graph.linker import _append_links_section
+    _, incoming = build_link_map(vault)
+    valid = note_stems(vault)
+
+    # Collect unique linker paths (a note may link to multiple deleted stems)
+    linker_paths: set[Path] = set()
+    for stem in stems:
+        for linker_stem in incoming.get(stem, []):
+            found = list(vault.rglob(f"{linker_stem}.md"))
+            for f in found:
+                if not any(p.startswith(".") for p in f.relative_to(vault).parts):
+                    linker_paths.add(f)
+
+    swept: list[str] = []
+    errors: list[dict] = []
+
+    for linker in linker_paths:
+        try:
+            content = linker.read_text(encoding="utf-8", errors="ignore")
+            updated = _append_links_section(content, [], valid)
+            if updated is not content:
+                linker.write_text(updated, encoding="utf-8")
+                swept.append(str(linker.relative_to(vault)))
+        except Exception as e:
+            errors.append({"file": str(linker.relative_to(vault)), "error": str(e)})
+
+    return {"swept": swept, "errors": errors}
+
+
+def delete_notes(notes: list[str]) -> dict:
+    """Move notes to vault/.trash/ and sweep inbound wikilinks.
+
+    `notes` are paths relative to the vault root (e.g. 'decision/foo.md').
+    Returns {"deleted": [...], "links_cleaned": [...], "errors": [...]}.
+    """
+    vault = Path(get_vault_path())
+    trash_dir = vault / ".trash"
+    trash_dir.mkdir(exist_ok=True)
+
+    deleted: list[str] = []
+    errors: list[dict] = []
+    deleted_stems: list[str] = []
+
+    for note_rel in notes:
+        src = vault / note_rel
+
+        # Security — prevent path traversal
+        try:
+            src.resolve().relative_to(vault.resolve())
+        except ValueError:
+            errors.append({"source": note_rel, "error": "Path outside vault boundary"})
+            continue
+
+        if not src.exists():
+            errors.append({"source": note_rel, "error": "File not found"})
+            continue
+
+        # Collision-safe flat name in .trash/ (Obsidian convention)
+        trash_dest = trash_dir / src.name
+        counter = 1
+        while trash_dest.exists():
+            trash_dest = trash_dir / f"{src.stem}-{counter}{src.suffix}"
+            counter += 1
+
+        try:
+            shutil.move(str(src), str(trash_dest))
+            deleted.append(note_rel)
+            deleted_stems.append(src.stem)
+        except Exception as e:
+            errors.append({"source": note_rel, "error": str(e)})
+
+    # Sweep inbound links in a single pass after all moves (valid_stems excludes .trash)
+    links_cleaned: list[str] = []
+    if deleted_stems:
+        sweep_result = sweep_dead_links(vault, deleted_stems)
+        links_cleaned = sweep_result["swept"]
+        errors.extend(sweep_result["errors"])
+
+        # Remove orphaned chunks from ChromaDB
+        from archiver_rag.core.ingest import prune_orphans
+        prune_orphans(str(vault))
+
+    return {"deleted": deleted, "links_cleaned": links_cleaned, "errors": errors}

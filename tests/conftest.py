@@ -21,6 +21,7 @@ _MODULES_WITH_VAULT = [
     "archiver_rag.graph.clustering",
     "archiver_rag.graph.linker",
     "archiver_rag.core.ingest",
+    "archiver_rag.watcher",
 ]
 
 

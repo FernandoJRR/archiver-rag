@@ -153,8 +153,7 @@ def prune_orphans(vault_path: str) -> int:
 
 def ingest_vault(vault_path: str):
     for root, dirs, files in os.walk(vault_path):
-        # Skip Obsidian's hidden folder
-        dirs[:] = [d for d in dirs if d != ".obsidian"]
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
 
         for file in files:
             if file.endswith(".md"):
@@ -178,7 +177,7 @@ def sync_vault(vault_path: str) -> dict:
     up_to_date = 0
 
     for root, dirs, files in os.walk(vault_path):
-        dirs[:] = [d for d in dirs if d != ".obsidian"]
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
         for file in files:
             if not file.endswith(".md"):
                 continue
