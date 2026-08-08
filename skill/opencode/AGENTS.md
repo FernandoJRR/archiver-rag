@@ -121,13 +121,17 @@ Placing a newly created note?
 Semantic search over the vault with graph reranking.
 
 ```
-query          string   required   What to search for
-n_results      int      default 3  Number of chunks to return
-min_score      float    default 0.35  Minimum base cosine score to include
-context_note   string   optional   Note stem or path — boosts wikilink neighbors
+query          string     required      What to search for
+n_results      int        default 3     Number of chunks to return
+min_score      float      default 0.35  Minimum base cosine score to include
+context_note   string     optional      Note stem or path — boosts wikilink neighbors
+type           string     optional      Filter by frontmatter type: (decision, gotcha, …)
+tags           string[]   optional      Filter to notes with any of these tags
 ```
 
-Returns array of chunks with `content`, `source`, `relevance_score`, `base_score`,
+`type` reads frontmatter, not the folder — stable across `auto_cluster` moves.
+
+Returns array of chunks with `content`, `source`, `type`, `relevance_score`, `base_score`,
 `graph_boost`, `hub_boost`.
 
 ### vault_status
@@ -156,10 +160,11 @@ moves   array   required   List of { source, destination } (paths relative to va
 ```
 
 Returns `{ moved, failed, succeeded[], errors[] }`. Never manually update wikilinks
-after a move — this tool handles it.
+after a move — this tool handles it. Rewrites `[[note]]`, `[[note#heading]]`,
+`[[note|alias]]`, and bare names in YAML `related:` blocks.
 
 ### log_note
-Create a dated knowledge note. The watcher auto-indexes and auto-links it.
+Create a knowledge note in the vault. The watcher auto-indexes and auto-links it.
 
 ```
 title          string     required          Note title
@@ -170,8 +175,9 @@ related_notes  string[]   optional          Note stems to link to
 ```
 
 Returns `{ created, type, title, tags, related, path }`. Filename:
-`{vault}/{type}/{date}-{slug}.md`, collision-safe. Do not manually edit the
-`## Related` section — `linker.py` overwrites it on next ingest.
+`{vault}/{type}/{slug}.md` — slug is the note's identity; date lives in frontmatter.
+Collision-safe. Do not manually edit the `## Related` section — `linker.py` overwrites
+it on next ingest.
 
 ### cluster_note
 Suggest a folder for a single note based on where its wikilink neighbors live.

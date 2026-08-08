@@ -76,13 +76,17 @@ Placing a newly created note?
 Semantic search over the vault with graph reranking.
 
 ```
-query          string   required   What to search for
-n_results      int      default 3  Number of chunks to return
-min_score      float    default 0.35  Minimum base cosine score to include
-context_note   string   optional   Note stem or path — boosts wikilink neighbors
+query          string     required      What to search for
+n_results      int        default 3     Number of chunks to return
+min_score      float      default 0.35  Minimum base cosine score to include
+context_note   string     optional      Note stem or path — boosts wikilink neighbors
+type           string     optional      Filter by frontmatter type: field (decision, gotcha, …)
+tags           string[]   optional      Filter to notes with any of these tags
 ```
 
-Returns array of chunks with `content`, `source`, `relevance_score`, `base_score`, `graph_boost`, `hub_boost`.
+`type` reads the frontmatter `type:` key, **not** the folder. A note `auto_cluster` moved from `gotcha/` to `decision/` still matches `type="gotcha"`.
+
+Returns array of chunks with `content`, `source`, `type`, `relevance_score`, `base_score`, `graph_boost`, `hub_boost`.
 
 When to use:
 - Always call before reading source files — vault context saves tokens
@@ -126,7 +130,7 @@ When to use:
 ---
 
 ### move_notes
-Move one or more files and automatically rewrite all `[[wikilinks]]` across the vault.
+Move one or more files and automatically rewrite all wikilinks across the vault.
 
 ```
 moves   array   required   List of { source, destination } (paths relative to vault root)
@@ -140,12 +144,13 @@ When to use:
 - Batch moves — pass all moves in one call
 - Called automatically by cluster tools when `apply=true`
 
-Never manually update wikilinks after a move — this tool handles it.
+Never manually update wikilinks after a move — this tool handles it. Rewrites `[[note]]`,
+`[[note#heading]]`, `[[note|alias]]`, and bare names in YAML `related:` blocks.
 
 ---
 
 ### log_note
-Create a dated knowledge note in the vault. The watcher auto-indexes and auto-links it.
+Create a knowledge note in the vault. The watcher auto-indexes and auto-links it.
 
 ```
 title          string         required              Note title
@@ -157,7 +162,8 @@ related_notes  string[]       optional              Note stems to link to
 
 Returns `{ created, type, title, tags, related, path }`.
 
-Filename format: `{vault}/{type}/{date}-{slug}.md`  
+Filename format: `{vault}/{type}/{slug}.md` — the slug IS the note's identity; wikilinks
+are written against it. The date lives in frontmatter `date:`, not the filename.
 Collision-safe: appends `-1`, `-2` if name exists.
 
 When to use:

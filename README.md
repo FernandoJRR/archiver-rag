@@ -29,7 +29,7 @@ Your Obsidian vault (.md files)
 Three layers make search smarter than plain embeddings:
 
 1. **Contextual prefix** — each chunk is embedded with its note's metadata (folder, tags, wikilinks), so vectors carry structural context
-2. **Rich metadata filtering** — ChromaDB stores folder, tags, incoming link count, and wikilinks for filtered retrieval
+2. **Rich metadata filtering** — ChromaDB stores folder, type, tags, incoming link count, and wikilinks for filtered retrieval
 3. **Graph reranking** — after vector search, results are re-scored by wikilink proximity to a context note and hub importance
 
 The file watcher runs as a background service. Edit a note in Obsidian, save it, and it's indexed and auto-linked within seconds — no manual sync needed.
@@ -40,7 +40,7 @@ The file watcher runs as a background service. Edit a note in Obsidian, save it,
 
 - **Semantic search** with graph reranking — finds notes by meaning, then boosts results connected via wikilinks
 - **Auto-linking** — after every ingest, appends a `## Related` section with `[[wikilinks]]` to build the knowledge graph automatically
-- **Knowledge logging** — create dated, categorized notes (`decision`, `lesson`, `gotcha`, `pattern`, …) from any agent
+- **Knowledge logging** — create categorized notes (`decision`, `lesson`, `gotcha`, `pattern`, …) from any agent; date lives in frontmatter, filename is the slug identity wikilinks are written against
 - **Vault health** — single call returns orphaned notes, broken links, missing frontmatter, tag stats, and recent activity
 - **Wikilink-aware reorganization** — move files and every `[[link]]` across the vault is rewritten automatically
 - **Smart clustering** — label-propagation algorithm groups notes by wikilink structure and suggests folder organization
@@ -66,6 +66,22 @@ pipx install archiver-rag
 > Use `pipx`, not `pip install` — pipx creates an isolated environment and exposes the CLI globally on `PATH`, which is required for MCP registration to find the correct executable.
 
 For local development from a clone of this repo, use `pipx install --editable .` instead.
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/FernandoJRR/archiver-rag && cd archiver-rag
+pipx install --editable .   # global CLI — required for MCP registration
+pip install -e ".[dev]"     # adds pytest
+pytest                      # 39 tests, ~0.3 s
+```
+
+`tests/` layout:
+- `conftest.py` — `_no_real_vault` (autouse): patches `get_vault_path` in every module that imports it, so no test ever touches `~/.archiver-rag/`. Opt-in `tmp_vault` fixture for tests that need real files.
+- `test_wikilinks.py` — 28 unit tests for the offset-based wikilink extractor
+- `test_linker_section.py` — 11 characterization tests for `_append_links_section`
 
 ---
 
@@ -142,7 +158,9 @@ archiver-rag start             # start the background watcher service
 archiver-rag stop              # stop the service
 archiver-rag restart           # restart the service
 archiver-rag status            # check if service is running
-archiver-rag index             # force re-index the entire vault
+archiver-rag index             # force re-index the entire vault (runs prune_orphans)
+archiver-rag sync              # ingest only new/modified notes + prune orphaned chunks
+archiver-rag prune             # remove index chunks whose source file no longer exists
 archiver-rag search "query"    # test semantic search from the terminal
 archiver-rag health            # chunk count and index peek
 archiver-rag logs              # tail the service log
@@ -171,11 +189,11 @@ Once registered, agents have access to 7 tools:
 
 | Tool | What it does |
 |---|---|
-| `search_vault` | Semantic search with graph reranking. Accepts a `context_note` to boost wikilink neighbors. |
+| `search_vault` | Semantic search with graph reranking. `context_note` boosts wikilink neighbors. `type` filters by frontmatter `type:` (stable across folder moves). `tags` post-filters by tag overlap. |
 | `vault_status` | Vault structure, health diagnostics, tag stats, and recent activity in one call. |
 | `get_connections` | BFS wikilink traversal — outgoing and incoming links up to depth 3. |
 | `move_notes` | Move files and auto-rewrite all `[[wikilinks]]` across the vault. |
-| `log_note` | Create a dated knowledge note; watcher indexes and auto-links it immediately. |
+| `log_note` | Create a knowledge note at `{type}/{slug}.md`; watcher indexes and auto-links it immediately. |
 | `cluster_note` | Suggest a folder for one note based on where its wikilink neighbors live. |
 | `cluster_vault` | Label-propagation clustering of the entire vault with folder suggestions. |
 
@@ -210,7 +228,9 @@ Note types are expressed through frontmatter, not folder structure:
 ---
 type: decision
 tags: [architecture, async]
-related: [[AsyncLocalStorage]], [[PrismaExtensions]]
+related:
+  - AsyncLocalStorage
+  - PrismaExtensions
 date: 2026-04-27
 ---
 ```
