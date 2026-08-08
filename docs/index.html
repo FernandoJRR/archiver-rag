@@ -645,7 +645,7 @@
       <div class="flow-step">
         <div class="flow-num">Step 03</div>
         <div class="flow-title">ChromaDB</div>
-        <div class="flow-desc">Vectors stored locally with rich metadata: folder, tags, wikilinks, incoming link count. Persistent across restarts.</div>
+        <div class="flow-desc">Vectors stored locally with rich metadata: folder, type, tags, wikilinks, incoming link count. Persistent across restarts. Chunks for deleted or moved notes are pruned automatically — the index never drifts from disk.</div>
         <span class="flow-arrow" aria-hidden="true">→</span>
       </div>
       <div class="flow-step">
@@ -676,7 +676,7 @@
         <span class="layer-numeral" aria-hidden="true">ii.</span>
         <div class="layer-tag">Layer II</div>
         <div class="layer-title">Metadata filtering</div>
-        <p class="layer-desc">Every chunk is stored with folder, tags, wikilinks, and incoming link count as filterable fields. Search can constrain by any dimension before the vector ranking even runs.</p>
+        <p class="layer-desc">Every chunk is stored with folder, type, tags, wikilinks, and incoming link count. The <code style="font-family:var(--mono);font-size:.82rem;color:var(--accent)">type</code> field is a ChromaDB pre-filter — applied before the vector ranking runs. Tags narrow the result set post-retrieval over an over-fetched candidate pool.</p>
       </div>
       <div class="layer-card">
         <span class="layer-numeral" aria-hidden="true">iii.</span>
@@ -705,7 +705,7 @@
       <div class="index-card">
         <div class="call-num">Ref · 002</div>
         <div class="index-title">Knowledge logging</div>
-        <p class="index-desc"><code>log_note</code> creates dated notes in typed folders (<code>decision/</code>, <code>lesson/</code>, <code>gotcha/</code>). The watcher picks them up and auto-links them immediately.</p>
+        <p class="index-desc"><code>log_note</code> creates notes in typed folders (<code>decision/</code>, <code>lesson/</code>, <code>gotcha/</code>) — the filename is the note's identity, the date lives in frontmatter. The watcher picks them up and auto-links them immediately.</p>
       </div>
       <div class="index-card">
         <div class="call-num">Ref · 003</div>
@@ -740,11 +740,11 @@
         <p class="acc">Structure your vault understands</p>
         <h2>Notes are nodes.<br>Wikilinks are edges.</h2>
         <p>archiver-rag understands the structure of your vault, not just the text inside it. Every <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">[[link]]</code> is a graph edge that shapes search, clustering, and auto-linking.</p>
-        <p>Frontmatter is first-class: <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">type</code>, <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">tags</code>, and <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">related</code> are stored as filterable metadata on every chunk.</p>
+        <p>Frontmatter is first-class: <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">type</code> and <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">tags</code> are stored as filterable metadata on every chunk. <code style="font-family:var(--mono);font-size:.82rem;color:var(--brass)">type</code> is the stable taxonomy — it reads frontmatter, not the folder, so it survives auto-cluster moves.</p>
         <div class="fm-pills">
           <span class="fm-pill">type: decision</span>
           <span class="fm-pill">tags: [architecture]</span>
-          <span class="fm-pill">related: [[pattern-async]]</span>
+          <span class="fm-pill">related: pattern-async</span>
           <span class="fm-pill">date: 2026-04-18</span>
         </div>
       </div>
@@ -812,7 +812,7 @@
           <tr>
             <td class="ledger-num">001</td>
             <td class="ledger-name">search_vault</td>
-            <td class="ledger-desc">Semantic search with graph reranking. Pass <code>context_note</code> to boost wikilink neighbors of a known note.</td>
+            <td class="ledger-desc">Semantic search with graph reranking. Pass <code>context_note</code> to boost wikilink neighbors of a known note. Filter by frontmatter <code>type</code> (stable across folder moves) or narrow by <code>tags</code>.</td>
           </tr>
           <tr>
             <td class="ledger-num">002</td>
@@ -827,12 +827,12 @@
           <tr>
             <td class="ledger-num">004</td>
             <td class="ledger-name">move_notes</td>
-            <td class="ledger-desc">Move one or many files. All <code>[[wikilinks]]</code> across the vault are rewritten automatically after every move.</td>
+            <td class="ledger-desc">Move one or many files. All <code>[[wikilinks]]</code>, <code>[[note#heading]]</code>, and <code>[[note|alias]]</code> forms across the vault are rewritten automatically, including bare names in YAML <code>related:</code> blocks.</td>
           </tr>
           <tr>
             <td class="ledger-num">005</td>
             <td class="ledger-name">log_note</td>
-            <td class="ledger-desc">Create a dated knowledge note from any agent. The watcher indexes and auto-links it within seconds of creation.</td>
+            <td class="ledger-desc">Create a knowledge note from any agent. Filename is the note's slug-identity; date lives in frontmatter. The watcher indexes and auto-links it within seconds.</td>
           </tr>
           <tr>
             <td class="ledger-num">006</td>
