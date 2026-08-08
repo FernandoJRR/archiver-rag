@@ -18,6 +18,11 @@ dependencies = [
     "pyyaml",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.16.0",
+]
+
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 

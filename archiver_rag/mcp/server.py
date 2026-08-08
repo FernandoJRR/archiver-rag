@@ -12,6 +12,7 @@ from archiver_rag.vault.health import vault_status
 
 app = Server("obsidian-rag")
 
+
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     return [
@@ -23,34 +24,34 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "What you want to search for"
+                        "description": "What you want to search for",
                     },
                     "n_results": {
                         "type": "integer",
                         "description": "Number of chunks to return (default 3)",
-                        "default": 3
+                        "default": 3,
                     },
                     "context_note": {
                         "type": "string",
-                        "description": "Note name or path used as graph context (e.g. 'AuditTrail'). Boosts results directly connected via wikilinks."
+                        "description": "Note name or path used as graph context (e.g. 'AuditTrail'). Boosts results directly connected via wikilinks.",
                     },
                     "type": {
                         "type": "string",
-                        "description": "Filter by frontmatter type: field, e.g. 'decision', 'gotcha', 'pattern', 'lesson', 'reference'. Stable taxonomy — unaffected by auto_cluster folder moves."
+                        "description": "Filter by frontmatter type: field, e.g. 'decision', 'gotcha', 'pattern', 'lesson', 'reference'. Stable taxonomy — unaffected by auto_cluster folder moves.",
                     },
                     "tags": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Filter to notes containing any of these tags. Matched case-insensitively; any overlap returns the note."
-                    }
+                        "description": "Filter to notes containing any of these tags. Matched case-insensitively; any overlap returns the note.",
+                    },
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         ),
         Tool(
             name="vault_status",
             description="Get vault structure, health report, tag stats, and recent activity",
-            inputSchema={"type": "object", "properties": {}}
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="move_notes",
@@ -67,19 +68,19 @@ async def list_tools() -> list[Tool]:
                             "properties": {
                                 "source": {
                                     "type": "string",
-                                    "description": "Current path relative to vault root"
+                                    "description": "Current path relative to vault root",
                                 },
                                 "destination": {
                                     "type": "string",
-                                    "description": "New path relative to vault root"
-                                }
+                                    "description": "New path relative to vault root",
+                                },
                             },
-                            "required": ["source", "destination"]
-                        }
+                            "required": ["source", "destination"],
+                        },
                     },
                 },
-                "required": ["moves"]
-            }
+                "required": ["moves"],
+            },
         ),
         Tool(
             name="log_note",
@@ -93,21 +94,28 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "title": {"type": "string", "description": "Note title"},
-                    "content": {"type": "string", "description": "Note body in markdown."},
+                    "content": {
+                        "type": "string",
+                        "description": "Note body in markdown.",
+                    },
                     "type": {
                         "type": "string",
                         "description": "Note category, becomes the folder. E.g. decision, meeting, lesson, idea.",
-                        "default": "note"
+                        "default": "note",
                     },
-                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags"},
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Tags",
+                    },
                     "related_notes": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Note stems to link to, e.g. 'AsyncLocalStorage'"
-                    }
+                        "description": "Note stems to link to, e.g. 'AsyncLocalStorage'",
+                    },
                 },
-                "required": ["title", "content"]
-            }
+                "required": ["title", "content"],
+            },
         ),
         Tool(
             name="cluster_vault",
@@ -115,10 +123,18 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "min_cluster_size": {"type": "integer", "description": "Minimum notes per cluster. Default 2.", "default": 2},
-                    "apply": {"type": "boolean", "description": "Move files automatically. Default false.", "default": False}
-                }
-            }
+                    "min_cluster_size": {
+                        "type": "integer",
+                        "description": "Minimum notes per cluster. Default 2.",
+                        "default": 2,
+                    },
+                    "apply": {
+                        "type": "boolean",
+                        "description": "Move files automatically. Default false.",
+                        "default": False,
+                    },
+                },
+            },
         ),
         Tool(
             name="cluster_note",
@@ -126,11 +142,18 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "note": {"type": "string", "description": "Note filename e.g. 'AuditTrail.md'"},
-                    "apply": {"type": "boolean", "description": "Move the note automatically. Default false.", "default": False}
+                    "note": {
+                        "type": "string",
+                        "description": "Note filename e.g. 'AuditTrail.md'",
+                    },
+                    "apply": {
+                        "type": "boolean",
+                        "description": "Move the note automatically. Default false.",
+                        "default": False,
+                    },
                 },
-                "required": ["note"]
-            }
+                "required": ["note"],
+            },
         ),
         Tool(
             name="get_connections",
@@ -145,20 +168,21 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "note": {
                         "type": "string",
-                        "description": "Note name or path (e.g. 'AuditTrail' or 'knowledge/AuditTrail.md')"
+                        "description": "Note name or path (e.g. 'AuditTrail' or 'knowledge/AuditTrail.md')",
                     },
                     "depth": {
                         "type": "integer",
                         "description": "How many hops to traverse. Default 1, max recommended 3.",
                         "default": 1,
                         "minimum": 1,
-                        "maximum": 3
-                    }
+                        "maximum": 3,
+                    },
                 },
-                "required": ["note"]
-            }
+                "required": ["note"],
+            },
         ),
     ]
+
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -182,6 +206,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
     elif name == "log_note":
         from archiver_rag.vault.notes import log_note as _log_note
+
         result = _log_note(
             title=arguments["title"],
             content=arguments["content"],
@@ -192,28 +217,32 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
     elif name == "cluster_vault":
         from archiver_rag.graph.clustering import cluster_vault as _cv, apply_clusters
+
         result = _cv(min_cluster_size=int(arguments.get("min_cluster_size", 2)))
         if arguments.get("apply") and result["clusters"]:
             result["moves"] = apply_clusters(result["clusters"])
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
     elif name == "cluster_note":
         from archiver_rag.graph.clustering import cluster_note as _cn
+
         result = _cn(arguments["note"])
         if arguments.get("apply") and result.get("suggested_folder"):
-            move_results = move_notes([{
-                "source": arguments["note"],
-                "destination": f"{result['suggested_folder']}/{Path(arguments['note']).name}"
-            }])
+            move_results = move_notes(
+                [
+                    {
+                        "source": arguments["note"],
+                        "destination": f"{result['suggested_folder']}/{Path(arguments['note']).name}",
+                    }
+                ]
+            )
             result["move"] = move_results
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
     elif name == "get_connections":
-        result = get_connections(
-            arguments["note"],
-            arguments.get("depth", 1)
-        )
+        result = get_connections(arguments["note"], arguments.get("depth", 1))
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
     else:
         raise ValueError(f"Unknown tool: {name}")
+
 
 async def main():
     async with stdio_server() as (read_stream, write_stream):

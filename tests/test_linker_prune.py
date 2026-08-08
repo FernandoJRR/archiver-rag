@@ -9,10 +9,12 @@ Conservative pruning rules (keep on doubt):
   2. target contains '/'              → keep (path-style links can't be resolved by stem)
   3. target not in valid_stems        → prune
 """
+
 from archiver_rag.graph.linker import _append_links_section
 
 
 # ── backward compatibility: valid_stems=None disables pruning ─────────────────
+
 
 def test_no_valid_stems_keeps_all():
     """Default call (valid_stems=None) must never prune — backward compat."""
@@ -30,6 +32,7 @@ def test_empty_valid_stems_set_prunes_all():
 
 # ── pruning: dead target removed, live target kept ────────────────────────────
 
+
 def test_dead_target_pruned():
     content = "# Note\n\nBody.\n\n## Related\n- [[Dead]]\n- [[Live]]"
     result = _append_links_section(content, [], valid_stems={"Live"})
@@ -46,6 +49,7 @@ def test_live_target_survives():
 
 # ── conservative rule: path-style targets are never pruned ───────────────────
 
+
 def test_path_style_target_kept_even_if_not_in_valid_stems():
     """[[folder/Note]] contains '/' — must survive even when valid_stems is empty."""
     content = "# Note\n\nBody.\n\n## Related\n- [[folder/Note]]"
@@ -54,6 +58,7 @@ def test_path_style_target_kept_even_if_not_in_valid_stems():
 
 
 # ── pruning interacts correctly with aliases and anchors ─────────────────────
+
 
 def test_aliased_dead_target_pruned():
     """[[Dead|My Label]] — alias preserved on live; dropped entirely if dead."""
@@ -73,6 +78,7 @@ def test_anchor_dead_target_pruned():
 
 # ── no-op guard: prune-only writes to disk ────────────────────────────────────
 
+
 def test_prune_without_additions_still_writes():
     """If something was pruned but nothing added, result must NOT be the original object."""
     content = "# Note\n\nBody.\n\n## Related\n- [[Dead]]"
@@ -91,15 +97,19 @@ def test_no_prune_no_addition_returns_original():
 
 # ── prune + add in the same call ─────────────────────────────────────────────
 
+
 def test_prune_and_add_in_same_call():
     content = "# Note\n\nBody.\n\n## Related\n- [[Dead]]\n- [[Live]]"
-    result = _append_links_section(content, ["NewLink"], valid_stems={"Live", "NewLink"})
+    result = _append_links_section(
+        content, ["NewLink"], valid_stems={"Live", "NewLink"}
+    )
     assert "[[Live]]" in result
     assert "[[NewLink]]" in result
     assert "[[Dead]]" not in result
 
 
 # ── sections after ## Related are never touched ───────────────────────────────
+
 
 def test_sections_after_related_preserved_after_prune():
     content = (
@@ -114,6 +124,7 @@ def test_sections_after_related_preserved_after_prune():
 
 
 # ── branch B (no ## Related section) ─────────────────────────────────────────
+
 
 def test_no_section_empty_new_links_returns_original():
     """No Related section + empty new_links → no section is added, original returned."""

@@ -8,11 +8,13 @@ from archiver_rag.core.embedder import _is_cached
 
 CONFIG_PATH = Path.home() / ".archiver-rag" / "config.json"
 
+
 def load_config() -> dict:
     if not CONFIG_PATH.exists():
         print("[red]Not initialized. Run `archiver-rag init` first.[/red]")
         raise typer.Exit(1)
     return json.loads(CONFIG_PATH.read_text())
+
 
 def run_init():
     print("[blue]🔍 Archiver RAG Setup[/blue]\n")
@@ -42,22 +44,27 @@ def run_init():
 
     # 3. Check for embedding model
     if not _is_cached():
-        print("[yellow]📥 Downloading embedding model (~90MB, first time only)...[/yellow]")
+        print(
+            "[yellow]📥 Downloading embedding model (~90MB, first time only)...[/yellow]"
+        )
     else:
         print("[green]✅ Embedding model found in cache[/green]")
 
     # 4. Run initial index
     print("\n[yellow]📚 Indexing vault...[/yellow]")
     from archiver_rag.core.ingest import ingest_vault
+
     ingest_vault(vault_path)
 
     # 5. Register MCP in Claude Code
     from archiver_rag.mcp.register import register_mcp
+
     register_mcp()
 
     # 6. Setup service
     if auto_start:
         from archiver_rag.service import setup_service
+
         setup_service()
 
     print("\n[green]✅ Setup complete![/green]")

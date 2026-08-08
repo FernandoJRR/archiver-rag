@@ -7,6 +7,7 @@ save and would sweep live wikilinks out of unrelated notes. _is_spurious_delete 
 guard; these tests pin both halves of it — a save must be a no-op, a real delete must
 still clean up.
 """
+
 from __future__ import annotations
 
 import threading
@@ -38,12 +39,15 @@ def spy(monkeypatch):
     monkeypatch.setattr("archiver_rag.watcher.collection", _FakeCollection())
     monkeypatch.setattr(
         "archiver_rag.vault.notes.sweep_dead_links",
-        lambda vault, stems: calls["swept"].append(list(stems)) or {"swept": [], "errors": []},
+        lambda vault, stems: (
+            calls["swept"].append(list(stems)) or {"swept": [], "errors": []}
+        ),
     )
     return calls
 
 
 # ── _is_spurious_delete in isolation ─────────────────────────────────────────
+
 
 def test_existing_file_is_spurious_immediately(tmp_path):
     f = tmp_path / "note.md"
@@ -75,6 +79,7 @@ def test_file_reappearing_mid_window_is_spurious(tmp_path):
 
 
 # ── on_deleted end to end ────────────────────────────────────────────────────
+
 
 def test_save_does_not_evict_or_sweep(tmp_vault, spy):
     """The regression: a spurious delete for a file still on disk must do nothing."""

@@ -54,6 +54,7 @@ def _is_spurious_delete(path: Path, settle: float = DELETE_SETTLE_SECONDS) -> bo
 def _get_cluster_config() -> tuple[bool, int]:
     try:
         import json
+
         config_path = Path.home() / ".archiver-rag" / "config.json"
         config = json.loads(config_path.read_text())
         return config.get("auto_cluster", True), int(config.get("cluster_threshold", 5))
@@ -73,7 +74,11 @@ class VaultHandler(FileSystemEventHandler):
         if not auto_cluster:
             return
 
-        from archiver_rag.graph.clustering import cluster_note, cluster_vault, apply_clusters
+        from archiver_rag.graph.clustering import (
+            cluster_note,
+            cluster_vault,
+            apply_clusters,
+        )
         from archiver_rag.vault.reorganize import move_notes
 
         suggestion = cluster_note(Path(path).name)
@@ -90,7 +95,9 @@ class VaultHandler(FileSystemEventHandler):
                 src = str(Path(path).relative_to(vault))
             except ValueError:
                 return
-            result = move_notes([{"source": src, "destination": f"{target}/{Path(path).name}"}])
+            result = move_notes(
+                [{"source": src, "destination": f"{target}/{Path(path).name}"}]
+            )
             if result.get("moved"):
                 _log(f"Auto-placed {Path(path).name} → {target}/")
             return
@@ -135,6 +142,7 @@ class VaultHandler(FileSystemEventHandler):
         _log(f"File deleted: {source}")
         collection.delete(where={"source": source})
         from archiver_rag.vault.notes import sweep_dead_links
+
         sweep_result = sweep_dead_links(Path(vault_path), [Path(path).stem])
         if sweep_result["swept"]:
             _log(f"Swept links in: {', '.join(sweep_result['swept'])}")
@@ -190,6 +198,7 @@ class VaultHandler(FileSystemEventHandler):
                 new_stem = Path(dst).stem
                 if old_stem != new_stem:
                     from archiver_rag.vault.reorganize import _update_wikilinks
+
                     _update_wikilinks(Path(vault_path), old_stem, new_stem)
             if is_new_note:
                 self._maybe_cluster(dst)
@@ -199,9 +208,11 @@ class VaultHandler(FileSystemEventHandler):
         # deletes) or to a non-.md name. Treat it as a deletion and sweep the
         # wikilinks that now point nowhere.
         from archiver_rag.vault.notes import sweep_dead_links
+
         sweep_result = sweep_dead_links(Path(vault_path), [Path(src).stem])
         if sweep_result["swept"]:
             _log(f"Swept links in: {', '.join(sweep_result['swept'])}")
+
 
 def watch(vault_path: str):
     """Called by the service via `archiver-rag _watch`"""
@@ -225,6 +236,8 @@ def watch(vault_path: str):
     while observer.is_alive():
         time.sleep(1)
 
+
 if __name__ == "__main__":
     import sys
+
     watch(sys.argv[1])

@@ -6,6 +6,7 @@ five times. cluster_note kept suggesting the folder the note was already in, so 
 handler re-issued a move onto the note's own path. move_notes rejected each one, but the
 handler logged success anyway and every attempt re-triggered ingest + auto_link.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -20,7 +21,9 @@ def cluster_spy(monkeypatch):
     calls = {"moves": [], "logged": [], "full_cluster": 0}
 
     monkeypatch.setattr("archiver_rag.watcher._get_cluster_config", lambda: (True, 5))
-    monkeypatch.setattr("archiver_rag.watcher._log", lambda m: calls["logged"].append(m))
+    monkeypatch.setattr(
+        "archiver_rag.watcher._log", lambda m: calls["logged"].append(m)
+    )
 
     def _move_notes(moves):
         calls["moves"].append(moves)
@@ -46,7 +49,10 @@ def _suggest(monkeypatch, folder):
 
 # ── the churn regression ─────────────────────────────────────────────────────
 
-def test_note_already_in_target_folder_is_not_moved(tmp_vault, cluster_spy, monkeypatch):
+
+def test_note_already_in_target_folder_is_not_moved(
+    tmp_vault, cluster_spy, monkeypatch
+):
     _suggest(monkeypatch, "decision")
     note = tmp_vault.write("decision/already-there.md", "# Here")
     VaultHandler()._maybe_cluster(str(note))
@@ -69,7 +75,12 @@ def test_failed_move_is_not_logged_as_placed(tmp_vault, cluster_spy, monkeypatch
     _suggest(monkeypatch, "decision")
     monkeypatch.setattr(
         "archiver_rag.vault.reorganize.move_notes",
-        lambda moves: {"moved": 0, "failed": 1, "succeeded": [], "errors": [{"error": "nope"}]},
+        lambda moves: {
+            "moved": 0,
+            "failed": 1,
+            "succeeded": [],
+            "errors": [{"error": "nope"}],
+        },
     )
     note = tmp_vault.write("loose.md", "# Loose")
     VaultHandler()._maybe_cluster(str(note))
@@ -77,6 +88,7 @@ def test_failed_move_is_not_logged_as_placed(tmp_vault, cluster_spy, monkeypatch
 
 
 # ── disabled / no-suggestion paths ───────────────────────────────────────────
+
 
 def test_disabled_auto_cluster_does_nothing(tmp_vault, cluster_spy, monkeypatch):
     monkeypatch.setattr("archiver_rag.watcher._get_cluster_config", lambda: (False, 5))
@@ -97,7 +109,9 @@ def test_no_suggestion_counts_toward_threshold(tmp_vault, cluster_spy, monkeypat
 
     for _ in range(4):
         VaultHandler()._maybe_cluster(str(note))
-    assert cluster_spy["full_cluster"] == 0, "re-clustered before reaching the threshold"
+    assert cluster_spy["full_cluster"] == 0, (
+        "re-clustered before reaching the threshold"
+    )
 
     VaultHandler()._maybe_cluster(str(note))
     assert cluster_spy["full_cluster"] == 1

@@ -17,11 +17,11 @@ def _update_wikilinks(vault: Path, old_stem: str, new_stem: str):
     # Matches [[old_stem]], [[old_stem#heading]], [[old_stem|alias]],
     # [[old_stem#heading|alias]] — any combination of optional tail fragments.
     link_pattern = re.compile(
-        rf'\[\[{re.escape(old_stem)}((?:#[^\]|]+)?(?:\|[^\]]+)?)\]\]'
+        rf"\[\[{re.escape(old_stem)}((?:#[^\]|]+)?(?:\|[^\]]+)?)\]\]"
     )
     # Bare name in YAML related: block: "  - old_stem" (exact word, no brackets)
     yaml_related_pattern = re.compile(
-        rf'^([ \t]*-[ \t]+){re.escape(old_stem)}([ \t]*)$',
+        rf"^([ \t]*-[ \t]+){re.escape(old_stem)}([ \t]*)$",
         re.MULTILINE,
     )
 
@@ -55,10 +55,7 @@ def move_notes(moves: list[dict]) -> dict:
         destination = move.get("destination")
 
         if not source or not destination:
-            failed.append({
-                "source": source,
-                "error": "Missing source or destination"
-            })
+            failed.append({"source": source, "error": "Missing source or destination"})
             continue
 
         src = vault / source
@@ -69,24 +66,20 @@ def move_notes(moves: list[dict]) -> dict:
             src.resolve().relative_to(vault.resolve())
             dst.resolve().relative_to(vault.resolve())
         except ValueError:
-            failed.append({
-                "source": source,
-                "error": "Path outside vault boundary"
-            })
+            failed.append({"source": source, "error": "Path outside vault boundary"})
             continue
 
         if not src.exists():
-            failed.append({
-                "source": source,
-                "error": "File not found"
-            })
+            failed.append({"source": source, "error": "File not found"})
             continue
 
         if dst.exists():
-            failed.append({
-                "source": source,
-                "error": f"Destination already exists: {destination}"
-            })
+            failed.append(
+                {
+                    "source": source,
+                    "error": f"Destination already exists: {destination}",
+                }
+            )
             continue
 
         try:
@@ -100,24 +93,19 @@ def move_notes(moves: list[dict]) -> dict:
             if src.suffix == ".md":
                 _update_wikilinks(vault, src.stem, dst.stem)
 
-            succeeded.append({
-                "source": source,
-                "destination": destination
-            })
+            succeeded.append({"source": source, "destination": destination})
 
         except Exception as e:
-            failed.append({
-                "source": source,
-                "error": str(e)
-            })
+            failed.append({"source": source, "error": str(e)})
 
     if succeeded:
         from archiver_rag.core.ingest import prune_orphans
+
         prune_orphans(str(vault))
 
     return {
         "moved": len(succeeded),
         "failed": len(failed),
         "succeeded": succeeded,
-        "errors": failed
+        "errors": failed,
     }

@@ -4,6 +4,7 @@ Unit tests for archiver_rag.wikilinks.
 Covers the cases that matter for correctness and the surprising edge cases that
 would otherwise be "fixed" back to the broken state by a future reader.
 """
+
 import pytest
 from archiver_rag.wikilinks import (
     WikiLink,
@@ -16,13 +17,14 @@ from archiver_rag.wikilinks import (
 
 # ── frontmatter_span ──────────────────────────────────────────────────────────
 
+
 def test_frontmatter_span_present():
     text = "---\ntype: decision\n---\n\nBody here."
     span = frontmatter_span(text)
     assert span is not None
     assert span[0] == 0
     # span ends after the closing ---\n; the blank line + body follow
-    assert text[span[1]:].startswith("\nBody")
+    assert text[span[1] :].startswith("\nBody")
 
 
 def test_frontmatter_span_absent():
@@ -35,6 +37,7 @@ def test_frontmatter_span_does_not_exist_when_not_at_start():
 
 
 # ── code_spans ────────────────────────────────────────────────────────────────
+
 
 def test_fenced_code_basic():
     text = "before\n```\n[[phantom]]\n```\nafter"
@@ -106,11 +109,14 @@ def test_frontmatter_4space_indent_not_treated_as_code():
     spans = code_spans(text)
     foo_pos = text.index("[[foo]]")
     bar_pos = text.index("[[bar]]")
-    assert not any(s <= foo_pos < e for s, e in spans), "frontmatter link must not be masked"
+    assert not any(s <= foo_pos < e for s, e in spans), (
+        "frontmatter link must not be masked"
+    )
     assert not any(s <= bar_pos < e for s, e in spans)
 
 
 # ── extract_wikilinks ─────────────────────────────────────────────────────────
+
 
 def test_extract_basic():
     assert extract_wikilinks("See [[Foo]] and [[Bar]].") == ["Foo", "Bar"]
@@ -184,6 +190,7 @@ def test_newline_in_target_not_extracted():
 
 
 # ── iter_wikilinks ─────────────────────────────────────────────────────────────
+
 
 def test_iter_wikilinks_positions():
     text = "[[Foo]] and [[Bar]]"

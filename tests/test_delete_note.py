@@ -4,6 +4,7 @@ Tests for delete_notes() in vault/notes.py.
 Uses the tmp_vault fixture (disk-backed); no ChromaDB or embedder involved.
 prune_orphans is patched out to avoid real DB calls.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -22,10 +23,12 @@ def _no_prune(monkeypatch):
 
 def _delete(tmp_vault, notes: list[str]):
     from archiver_rag.vault.notes import delete_notes
+
     return delete_notes(notes)
 
 
 # ── basic move to .trash/ ─────────────────────────────────────────────────────
+
 
 def test_note_lands_in_trash(tmp_vault):
     tmp_vault.write("alpha.md", "# Alpha\n\nContent.")
@@ -53,6 +56,7 @@ def test_trash_collision_generates_suffix(tmp_vault):
 
 # ── inbound link sweep ────────────────────────────────────────────────────────
 
+
 def test_inbound_link_swept(tmp_vault):
     tmp_vault.write("target.md", "# Target\n\nContent.")
     tmp_vault.write("linker.md", "# Linker\n\nBody.\n\n## Related\n- [[target]]")
@@ -72,6 +76,7 @@ def test_no_inbound_links_no_sweep(tmp_vault):
 
 # ── path traversal protection ─────────────────────────────────────────────────
 
+
 def test_path_traversal_rejected(tmp_vault):
     result = _delete(tmp_vault, ["../escape.md"])
     assert result["deleted"] == []
@@ -80,11 +85,14 @@ def test_path_traversal_rejected(tmp_vault):
 
 # ── .trash/ is only created when something actually moves ────────────────────
 
+
 def test_failed_delete_leaves_no_trash_dir(tmp_vault):
     """A call that deletes nothing must not mutate the vault."""
     result = _delete(tmp_vault, ["../escape.md", "missing.md"])
     assert result["deleted"] == []
-    assert not (tmp_vault.root / ".trash").exists(), "empty .trash/ created by a no-op delete"
+    assert not (tmp_vault.root / ".trash").exists(), (
+        "empty .trash/ created by a no-op delete"
+    )
 
 
 def test_successful_delete_creates_trash_dir(tmp_vault):
@@ -94,6 +102,7 @@ def test_successful_delete_creates_trash_dir(tmp_vault):
 
 
 # ── file not found ────────────────────────────────────────────────────────────
+
 
 def test_missing_note_error(tmp_vault):
     result = _delete(tmp_vault, ["nonexistent.md"])
@@ -110,6 +119,7 @@ def test_missing_does_not_block_others(tmp_vault):
 
 # ── multiple notes — single sweep pass ───────────────────────────────────────
 
+
 def test_multiple_notes_single_sweep(tmp_vault):
     tmp_vault.write("a.md", "# A")
     tmp_vault.write("b.md", "# B")
@@ -122,6 +132,7 @@ def test_multiple_notes_single_sweep(tmp_vault):
 
 
 # ── .trash notes not counted as valid stems ───────────────────────────────────
+
 
 def test_trash_not_valid_stem(tmp_vault):
     """After deletion, the trashed note's stem must not appear in valid_stems."""

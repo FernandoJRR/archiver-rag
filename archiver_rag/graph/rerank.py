@@ -36,18 +36,20 @@ def rerank(
 
         final_score = round(base_score + graph_boost + hub_boost, 3)
 
-        reranked.append({
-            "content": doc,
-            "source": str(meta["source"]),
-            "folder": str(meta.get("folder", "")),
-            "type": str(meta.get("type", "")),
-            "tags": str(meta.get("tags", "")),
-            "title": str(meta.get("title", "")),
-            "relevance_score": final_score,
-            "base_score": base_score,
-            "graph_boost": round(graph_boost, 3),
-            "hub_boost": hub_boost,
-        })
+        reranked.append(
+            {
+                "content": doc,
+                "source": str(meta["source"]),
+                "folder": str(meta.get("folder", "")),
+                "type": str(meta.get("type", "")),
+                "tags": str(meta.get("tags", "")),
+                "title": str(meta.get("title", "")),
+                "relevance_score": final_score,
+                "base_score": base_score,
+                "graph_boost": round(graph_boost, 3),
+                "hub_boost": hub_boost,
+            }
+        )
 
     reranked.sort(key=lambda x: x["relevance_score"], reverse=True)
     return reranked[:n_results]

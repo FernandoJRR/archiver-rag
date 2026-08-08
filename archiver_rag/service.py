@@ -7,9 +7,11 @@ from archiver_rag.init_cmd import load_config
 LABEL = "com.archiver-rag"
 PLIST_PATH = Path.home() / "Library/LaunchAgents" / f"{LABEL}.plist"
 
+
 def _get_exe():
     result = subprocess.run(["which", "archiver-rag"], capture_output=True, text=True)
     return result.stdout.strip()
+
 
 def setup_service():
     config = load_config()
@@ -26,7 +28,7 @@ def setup_service():
     <array>
         <string>{exe}</string>
         <string>watch</string>
-        <string>{config['vault_path']}</string>
+        <string>{config["vault_path"]}</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -50,7 +52,7 @@ Description=Archiver RAG Watcher
 After=network.target
 
 [Service]
-ExecStart={exe} watch {config['vault_path']}
+ExecStart={exe} watch {config["vault_path"]}
 Restart=always
 StandardOutput=journal
 StandardError=journal
@@ -61,12 +63,14 @@ WantedBy=default.target"""
         subprocess.run(["systemctl", "--user", "enable", "--now", "archiver-rag"])
         print("[green]✅ Service registered with systemd[/green]")
 
+
 def start():
     if sys.platform == "darwin":
         subprocess.run(["launchctl", "load", str(PLIST_PATH)])
     elif sys.platform.startswith("linux"):
         subprocess.run(["systemctl", "--user", "start", "archiver-rag"])
     print("[green]✅ Service started[/green]")
+
 
 def stop():
     if sys.platform == "darwin":
@@ -75,11 +79,11 @@ def stop():
         subprocess.run(["systemctl", "--user", "stop", "archiver-rag"])
     print("[yellow]🛑 Service stopped[/yellow]")
 
+
 def status():
     if sys.platform == "darwin":
         result = subprocess.run(
-            ["launchctl", "list", LABEL],
-            capture_output=True, text=True
+            ["launchctl", "list", LABEL], capture_output=True, text=True
         )
         if result.returncode == 0:
             print("[green]✅ Running[/green]")

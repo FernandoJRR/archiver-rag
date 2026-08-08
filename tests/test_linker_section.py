@@ -5,11 +5,13 @@ Tests marked xfail(strict=True) document the four data-loss bugs that existed
 before the rewrite. After the fix they should XPASS and the markers are removed.
 Tests without xfail document currently-correct behaviour that must not regress.
 """
+
 import pytest
 from archiver_rag.graph.linker import _append_links_section
 
 
 # ── currently correct behaviour (must not regress) ────────────────────────────
+
 
 def test_no_section_appends():
     content = "# Note\n\nSome body text."
@@ -40,6 +42,7 @@ def test_empty_new_links_no_duplicate_section():
 
 # ── bug 1: DOTALL .*? eats content after ## Related ──────────────────────────
 
+
 def test_content_after_related_section_preserved():
     """Sections after ## Related must not be destroyed."""
     content = "# Note\n\nBody.\n\n## Related\n- [[Foo]]\n\n## Notes\nImportant stuff."
@@ -50,6 +53,7 @@ def test_content_after_related_section_preserved():
 
 # ── bug 2: backslash in stem causes re.error ──────────────────────────────────
 
+
 def test_backslash_in_new_link_does_not_raise():
     """A link target containing a backslash (e.g. Windows path) must not raise re.error."""
     content = "# Note\n\nBody.\n\n## Related\n- [[Existing]]"
@@ -59,6 +63,7 @@ def test_backslash_in_new_link_does_not_raise():
 
 
 # ── bug 3: aliases and anchors preserved across passes ───────────────────────
+
 
 def test_alias_preserved_on_second_pass():
     """[[Foo|My Label]] must not be flattened to [[Foo]] by a subsequent call."""
@@ -83,6 +88,7 @@ def test_aliased_link_suppresses_bare_duplicate():
 
 # ── bug 4: single-newline separation before ## Related ───────────────────────
 
+
 def test_single_newline_before_related_no_duplicate():
     """If the body ends with only one newline before ## Related, must not duplicate the section."""
     content = "# Note\n\nBody.\n## Related\n- [[Foo]]"
@@ -92,6 +98,7 @@ def test_single_newline_before_related_no_duplicate():
 
 
 # ── no-op write guard ─────────────────────────────────────────────────────────
+
 
 def test_returns_original_when_no_changes():
     """When all new_links are already present, return the identical string object."""

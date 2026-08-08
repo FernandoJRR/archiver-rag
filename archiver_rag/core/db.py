@@ -4,6 +4,7 @@ from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".archiver-rag" / "config.json"
 
+
 def _get_chroma_path() -> str:
     if not CONFIG_PATH.exists():
         raise FileNotFoundError(

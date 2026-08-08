@@ -10,16 +10,18 @@ from archiver_rag.core.db import collection
 from archiver_rag.utils import get_vault_path, build_link_map, log
 from archiver_rag.wikilinks import extract_wikilinks
 
+
 def _extract_frontmatter(content: str) -> tuple[dict, str]:
     if not content.startswith("---"):
         return {}, content
     try:
         end = content.index("---", 3)
         fm_text = content[3:end].strip()
-        body = content[end + 3:].strip()
+        body = content[end + 3 :].strip()
         return yaml.safe_load(fm_text) or {}, body
     except Exception:
         return {}, content
+
 
 def _extract_tags(frontmatter: dict, content: str) -> list[str]:
     tags: list[str] = []
@@ -28,15 +30,13 @@ def _extract_tags(frontmatter: dict, content: str) -> list[str]:
         tags.extend([str(t) for t in fm_tags])
     elif isinstance(fm_tags, str):
         tags.extend([t.strip() for t in fm_tags.split(",")])
-    inline = re.findall(r'#([\w/-]+)', content)
+    inline = re.findall(r"#([\w/-]+)", content)
     tags.extend(inline)
     return list(set(tags))
 
+
 def _build_context_prefix(
-    folder: str,
-    links: list[str],
-    tags: list[str],
-    title: str
+    folder: str, links: list[str], tags: list[str], title: str
 ) -> str:
     parts = []
     if title:
@@ -49,9 +49,11 @@ def _build_context_prefix(
         parts.append(f"Links to: {', '.join(links[:8])}")
     return "\n".join(parts)
 
+
 def _count_incoming_links(filepath: Path, vault: Path) -> int:
     _, incoming = build_link_map(vault)
     return len(incoming.get(filepath.stem, []))
+
 
 def ingest_file(filepath: str):
     vault = get_vault_path()
@@ -90,10 +92,7 @@ def ingest_file(filepath: str):
         return
 
     # Prepend prefix to each chunk before embedding
-    contextualized = [
-        f"{prefix}\n\n{chunk}" if prefix else chunk
-        for chunk in chunks
-    ]
+    contextualized = [f"{prefix}\n\n{chunk}" if prefix else chunk for chunk in chunks]
 
     vectors = embed(contextualized)
 
@@ -106,27 +105,31 @@ def ingest_file(filepath: str):
     incoming_count = _count_incoming_links(note, Path(vault))
     mtime = int(os.path.getmtime(filepath))
 
-    #------------------------------------------------
+    # ------------------------------------------------
     collection.delete(where={"source": source})
 
     collection.add(
         ids=[str(uuid.uuid4()) for _ in chunks],
         embeddings=vectors,
         documents=chunks,
-        metadatas=[{
-            "source": source,
-            "path": filepath,
-            "folder": folder,
-            "type": note_type,
-            "tags": ",".join(tags),
-            "links": ",".join(links),
-            "incoming_count": incoming_count,
-            "title": title,
-            "mtime": mtime,
-        } for _ in chunks]
+        metadatas=[
+            {
+                "source": source,
+                "path": filepath,
+                "folder": folder,
+                "type": note_type,
+                "tags": ",".join(tags),
+                "links": ",".join(links),
+                "incoming_count": incoming_count,
+                "title": title,
+                "mtime": mtime,
+            }
+            for _ in chunks
+        ],
     )
 
     log(f"Indexed {len(chunks)} chunks from {source}")
+
 
 def prune_orphans(vault_path: str) -> int:
     """Delete chunks whose source file no longer exists on disk. Returns count of pruned sources."""
@@ -151,6 +154,7 @@ def prune_orphans(vault_path: str) -> int:
 
     return len(orphaned)
 
+
 def ingest_vault(vault_path: str):
     for root, dirs, files in os.walk(vault_path):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
@@ -160,6 +164,7 @@ def ingest_vault(vault_path: str):
                 ingest_file(os.path.join(root, file))
 
     prune_orphans(vault_path)
+
 
 def sync_vault(vault_path: str) -> dict:
     """Ingest only notes that are missing from or staler than the ChromaDB index."""
@@ -198,8 +203,10 @@ def sync_vault(vault_path: str) -> dict:
     pruned = prune_orphans(vault_path)
     return {"indexed": ingested, "up_to_date": up_to_date, "pruned": pruned}
 
+
 if __name__ == "__main__":
     import sys
+
     vault_path = sys.argv[1]
     print(f"Ingesting vault on: {vault_path}")
     ingest_vault(vault_path)

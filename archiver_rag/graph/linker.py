@@ -14,10 +14,8 @@ def _get_existing_links(content: str) -> set[str]:
     return set(extract_wikilinks(content, skip_code=False))
 
 
-_RELATED_HEADING_RE = re.compile(
-    r'^[ \t]{0,3}#{2,6}[ \t]+Related[ \t]*$', re.MULTILINE
-)
-_ANY_HEADING_RE = re.compile(r'^[ \t]{0,3}#{1,6}[ \t]', re.MULTILINE)
+_RELATED_HEADING_RE = re.compile(r"^[ \t]{0,3}#{2,6}[ \t]+Related[ \t]*$", re.MULTILINE)
+_ANY_HEADING_RE = re.compile(r"^[ \t]{0,3}#{1,6}[ \t]", re.MULTILINE)
 
 
 def _find_related_section(content: str) -> tuple[int, int, int] | None:
@@ -33,7 +31,7 @@ def _find_related_section(content: str) -> tuple[int, int, int] | None:
     heading_level = len(m.group(0).lstrip().split()[0])  # count # chars
     body_start = m.end()
     # Advance past the trailing newline of the heading line
-    if body_start < len(content) and content[body_start] == '\n':
+    if body_start < len(content) and content[body_start] == "\n":
         body_start += 1
 
     # Find next heading at level <= heading_level (i.e. ## or higher-level)
@@ -43,7 +41,7 @@ def _find_related_section(content: str) -> tuple[int, int, int] | None:
         # _ANY_HEADING_RE matches "# " not "#" so group(0) ends with a space
         # Count the # chars only
         stripped = nm.group(0).lstrip()
-        level = len(stripped) - len(stripped.lstrip('#'))
+        level = len(stripped) - len(stripped.lstrip("#"))
         if level <= heading_level:
             body_end = nm.start()
             break
@@ -164,15 +162,15 @@ def auto_link(filepath: str, min_score: float = 0.55, max_links: int = 5):
     results = collection.query(
         query_embeddings=[query_vector],
         n_results=20,  # fetch more, filter down
-        include=["metadatas", "distances"]
+        include=["metadatas", "distances"],
     )
 
     metadatas = results.get("metadatas") or []
     distances = results.get("distances") or []
 
     if metadatas and metadatas[0]:
-        meta_list: list = metadatas[0]   # type: ignore[index]
-        dist_list: list = distances[0]   # type: ignore[index]
+        meta_list: list = metadatas[0]  # type: ignore[index]
+        dist_list: list = distances[0]  # type: ignore[index]
 
         # Build candidates — deduplicate by source file
         seen_sources: set[str] = set()

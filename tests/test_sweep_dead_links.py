@@ -3,6 +3,7 @@ Tests for sweep_dead_links() in vault/notes.py.
 
 Isolated from delete_notes — tests the sweeping logic directly.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,10 +11,12 @@ from pathlib import Path
 
 def _sweep(tmp_vault, stems: list[str]):
     from archiver_rag.vault.notes import sweep_dead_links
+
     return sweep_dead_links(tmp_vault.root, stems)
 
 
 # ── no inbound links — no-op ──────────────────────────────────────────────────
+
 
 def test_no_inbound_links_is_noop(tmp_vault):
     tmp_vault.write("orphan.md", "# Orphan\n\nNo one links here.")
@@ -23,6 +26,7 @@ def test_no_inbound_links_is_noop(tmp_vault):
 
 
 # ── dead target pruned, live target kept ──────────────────────────────────────
+
 
 def test_dead_pruned_live_kept(tmp_vault):
     tmp_vault.write("live.md", "# Live")
@@ -37,6 +41,7 @@ def test_dead_pruned_live_kept(tmp_vault):
 
 # ── note in .trash not counted as valid ──────────────────────────────────────
 
+
 def test_trash_note_not_valid(tmp_vault):
     # Simulate: 'gone' has already been moved to .trash before sweep is called
     (tmp_vault.root / ".trash").mkdir()
@@ -49,6 +54,7 @@ def test_trash_note_not_valid(tmp_vault):
 
 # ── no-op when nothing to prune ──────────────────────────────────────────────
 
+
 def test_noop_when_nothing_to_prune(tmp_vault):
     """If all targets in ## Related are still valid, no write should occur."""
     tmp_vault.write("real.md", "# Real")
@@ -59,6 +65,7 @@ def test_noop_when_nothing_to_prune(tmp_vault):
 
 
 # ── multiple stems — collected in one pass ────────────────────────────────────
+
 
 def test_multiple_stems_swept(tmp_vault):
     tmp_vault.write("linker.md", "# L\n\n## Related\n- [[a]]\n- [[b]]")

@@ -20,6 +20,7 @@ leaves a phantom edge (status quo). A false positive deletes a real link, and ne
 list items at 4- and 8-space indents are exactly where wikilinks live in practice.
 All 6 measured phantoms in the vault are backtick/fence cases.
 """
+
 from __future__ import annotations
 
 import re
@@ -28,17 +29,19 @@ from dataclasses import dataclass
 Span = tuple[int, int]  # [start, end)
 
 # Require closing ]] and exclude newlines from target — prevents [[Foo swallowing a paragraph.
-_LINK_RE = re.compile(r'!?\[\[([^\]\n|#]+)(?:#([^\]\n|]+))?(?:\|([^\]\n]+))?\]\]')
+_LINK_RE = re.compile(r"!?\[\[([^\]\n|#]+)(?:#([^\]\n|]+))?(?:\|([^\]\n]+))?\]\]")
 
-_FENCE_RE = re.compile(r'^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})[^\n]*$', re.MULTILINE)
+_FENCE_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})[^\n]*$", re.MULTILINE
+)
 
 
 def frontmatter_span(text: str) -> Span | None:
     """Return [0, end) of the YAML frontmatter block, or None if absent."""
-    if not text.startswith('---'):
+    if not text.startswith("---"):
         return None
     # The opening --- must be at position 0; search for the closing --- on its own line.
-    m = re.search(r'\n---[ \t]*(?:\n|$)', text, re.MULTILINE)
+    m = re.search(r"\n---[ \t]*(?:\n|$)", text, re.MULTILINE)
     if m:
         return (0, m.end())
     return None
@@ -64,17 +67,17 @@ def code_spans(text: str) -> list[Span]:
         if m.start() < fm_end:
             i += 1
             continue
-        opener_char = m.group('fence')[0]
-        opener_len = len(m.group('fence'))
+        opener_char = m.group("fence")[0]
+        opener_len = len(m.group("fence"))
         # Look for a closer: same char, same or longer, at column 0 (no extra indent).
         j = i + 1
         closed = False
         while j < len(fences):
             c = fences[j]
             if (
-                c.group('fence')[0] == opener_char
-                and len(c.group('fence')) >= opener_len
-                and c.group('indent') == ''
+                c.group("fence")[0] == opener_char
+                and len(c.group("fence")) >= opener_len
+                and c.group("indent") == ""
             ):
                 spans.append((m.start(), c.end()))
                 i = j + 1
@@ -90,7 +93,7 @@ def code_spans(text: str) -> list[Span]:
     # ── inline code ────────────────────────────────────────────────────────────
     # A run of N backticks opens; the next run of exactly N backticks closes.
     # We scan the text outside frontmatter and outside already-found fenced regions.
-    backtick_re = re.compile(r'`+')
+    backtick_re = re.compile(r"`+")
     pos = fm_end
     for bm in backtick_re.finditer(text, fm_end):
         start = bm.start()
@@ -99,7 +102,7 @@ def code_spans(text: str) -> list[Span]:
             continue
         n = len(bm.group())
         # Find the matching closing run of exactly n backticks.
-        close_re = re.compile(r'`{' + str(n) + r'}(?!`)')
+        close_re = re.compile(r"`{" + str(n) + r"}(?!`)")
         cm = close_re.search(text, bm.end())
         if cm:
             end = cm.end()
@@ -119,13 +122,13 @@ def code_spans(text: str) -> list[Span]:
 
 @dataclass(frozen=True)
 class WikiLink:
-    target: str       # The note stem (no [[, ]], #heading, or |alias)
+    target: str  # The note stem (no [[, ]], #heading, or |alias)
     heading: str | None
     alias: str | None
-    start: int        # offset of the opening [[ or ![[
-    end: int          # offset just past the closing ]]
-    raw: str          # the full matched text
-    embed: bool       # True if ![[
+    start: int  # offset of the opening [[ or ![[
+    end: int  # offset just past the closing ]]
+    raw: str  # the full matched text
+    embed: bool  # True if ![[
 
 
 def iter_wikilinks(
@@ -133,7 +136,7 @@ def iter_wikilinks(
     *,
     skip_code: bool = True,
     masked: list[Span] | None = None,
-) -> 'Iterator[WikiLink]':
+) -> "Iterator[WikiLink]":
     """
     Yield WikiLink objects for every wikilink in text.
 
@@ -145,6 +148,7 @@ def iter_wikilinks(
     masked — caller-supplied additional spans to skip (e.g. section-range filtering).
     """
     from typing import Iterator  # local import to avoid circular at module level
+
     if skip_code:
         code = code_spans(text)
     else:
@@ -165,7 +169,7 @@ def iter_wikilinks(
             start=start,
             end=end,
             raw=m.group(0),
-            embed=m.group(0).startswith('!'),
+            embed=m.group(0).startswith("!"),
         )
 
 

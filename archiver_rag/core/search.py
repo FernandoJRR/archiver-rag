@@ -48,8 +48,10 @@ def search_vault(
     if tags:
         tag_set = {t.strip().lower() for t in tags}
         reranked = [
-            r for r in reranked
-            if tag_set & {t.strip().lower() for t in r.get("tags", "").split(",") if t.strip()}
+            r
+            for r in reranked
+            if tag_set
+            & {t.strip().lower() for t in r.get("tags", "").split(",") if t.strip()}
         ]
 
     return reranked[:n_results]

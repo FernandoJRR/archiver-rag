@@ -14,8 +14,8 @@ SLUG_MAX = 120
 
 def _slugify(title: str) -> str:
     title = title.lower().strip()
-    title = re.sub(r'[^\w\s-]', '', title)
-    title = re.sub(r'[\s_]+', '-', title)
+    title = re.sub(r"[^\w\s-]", "", title)
+    title = re.sub(r"[\s_]+", "-", title)
     return title[:SLUG_MAX]
 
 
@@ -27,7 +27,7 @@ def _build_frontmatter(type: str, tags: list[str], related_notes: list[str]) -> 
         lines.append("related:")
         for note in related_notes:
             # Store bare name in YAML (no [[brackets]]) — body ## Related carries the wikilinks
-            name = re.sub(r'^\[\[|\]\]$', '', note)
+            name = re.sub(r"^\[\[|\]\]$", "", note)
             lines.append(f"  - {name}")
     lines.append("---")
     return "\n".join(lines)
@@ -96,6 +96,7 @@ def sweep_dead_links(vault: Path, stems: list[str]) -> dict:
     so note_stems(vault) correctly excludes them and _append_links_section prunes their entries.
     """
     from archiver_rag.graph.linker import _append_links_section
+
     _, incoming = build_link_map(vault)
     valid = note_stems(vault)
 
@@ -178,6 +179,7 @@ def delete_notes(notes: list[str]) -> dict:
 
         # Remove orphaned chunks from ChromaDB
         from archiver_rag.core.ingest import prune_orphans
+
         prune_orphans(str(vault))
 
     return {"deleted": deleted, "links_cleaned": links_cleaned, "errors": errors}

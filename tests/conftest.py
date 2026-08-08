@@ -8,6 +8,7 @@ get_vault_path", so we patch every module's binding, not just utils.
 tmp_vault (opt-in): repoints those same bindings at tmp_path/vault and returns a helper
 that creates notes by relative path.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -33,11 +34,13 @@ def _no_real_vault(monkeypatch):
         )
 
     import archiver_rag.utils as _utils
+
     monkeypatch.setattr(_utils, "get_vault_path", _raise)
 
     for mod_name in _MODULES_WITH_VAULT:
         try:
             import importlib
+
             mod = importlib.import_module(mod_name)
             if hasattr(mod, "get_vault_path"):
                 monkeypatch.setattr(mod, "get_vault_path", _raise)
@@ -65,11 +68,13 @@ def tmp_vault(tmp_path, monkeypatch):
         return str(vault)
 
     import archiver_rag.utils as _utils
+
     monkeypatch.setattr(_utils, "get_vault_path", _get_vault_path)
 
     for mod_name in _MODULES_WITH_VAULT:
         try:
             import importlib
+
             mod = importlib.import_module(mod_name)
             if hasattr(mod, "get_vault_path"):
                 monkeypatch.setattr(mod, "get_vault_path", _get_vault_path)

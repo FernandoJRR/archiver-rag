@@ -6,8 +6,7 @@ from archiver_rag.wikilinks import extract_wikilinks
 
 def _build_adjacency(vault: Path) -> dict[str, set[str]]:
     real_notes = [
-        n for n in vault.rglob("*.md")
-        if not any(p.startswith(".") for p in n.parts)
+        n for n in vault.rglob("*.md") if not any(p.startswith(".") for p in n.parts)
     ]
     all_stems = note_stems(vault)
     adjacency: dict[str, set[str]] = {stem: set() for stem in all_stems}
@@ -26,7 +25,9 @@ def _build_adjacency(vault: Path) -> dict[str, set[str]]:
     return adjacency
 
 
-def _label_propagation(adjacency: dict[str, set[str]], max_iterations: int = 50) -> dict[str, str]:
+def _label_propagation(
+    adjacency: dict[str, set[str]], max_iterations: int = 50
+) -> dict[str, str]:
     labels = {stem: stem for stem in adjacency}
 
     for _ in range(max_iterations):
@@ -51,8 +52,7 @@ def _label_propagation(adjacency: dict[str, set[str]], max_iterations: int = 50)
 def _name_community(stems: list[str], adjacency: dict[str, set[str]]) -> str:
     stem_set = set(stems)
     internal_degrees = {
-        stem: len(adjacency.get(stem, set()) & stem_set)
-        for stem in stems
+        stem: len(adjacency.get(stem, set()) & stem_set) for stem in stems
     }
     return max(internal_degrees, key=lambda s: (internal_degrees[s], s))
 
@@ -80,12 +80,14 @@ def cluster_vault(min_cluster_size: int = 2) -> dict:
             found = list(vault.rglob(f"{stem}.md"))
             if found:
                 notes.append(str(found[0].relative_to(vault)))
-        clusters.append({
-            "name": name,
-            "size": len(members),
-            "notes": notes,
-            "suggested_folder": suggested_folder,
-        })
+        clusters.append(
+            {
+                "name": name,
+                "size": len(members),
+                "notes": notes,
+                "suggested_folder": suggested_folder,
+            }
+        )
 
     clusters.sort(key=lambda c: c["size"], reverse=True)
 
@@ -99,6 +101,7 @@ def cluster_vault(min_cluster_size: int = 2) -> dict:
 
 def apply_clusters(clusters: list[dict]) -> list[dict]:
     from archiver_rag.vault.reorganize import move_notes
+
     moves = []
     for cluster in clusters:
         for note_path in cluster["notes"]:
@@ -117,13 +120,23 @@ def cluster_note(note_name: str) -> dict:
     stem = Path(note_name).stem
 
     if stem not in adjacency:
-        return {"note": note_name, "suggested_folder": None, "votes": 0,
-                "total_neighbors": 0, "reason": "Note not found in vault"}
+        return {
+            "note": note_name,
+            "suggested_folder": None,
+            "votes": 0,
+            "total_neighbors": 0,
+            "reason": "Note not found in vault",
+        }
 
     neighbors = adjacency[stem]
     if not neighbors:
-        return {"note": note_name, "suggested_folder": None, "votes": 0,
-                "total_neighbors": 0, "reason": "Note has no wikilink neighbors"}
+        return {
+            "note": note_name,
+            "suggested_folder": None,
+            "votes": 0,
+            "total_neighbors": 0,
+            "reason": "Note has no wikilink neighbors",
+        }
 
     folder_votes: list[str] = []
     for neighbor in neighbors:
@@ -134,9 +147,13 @@ def cluster_note(note_name: str) -> dict:
                 folder_votes.append(folder.name)
 
     if not folder_votes:
-        return {"note": note_name, "suggested_folder": None, "votes": 0,
-                "total_neighbors": len(neighbors),
-                "reason": "All neighbors are in the vault root — no folder to suggest"}
+        return {
+            "note": note_name,
+            "suggested_folder": None,
+            "votes": 0,
+            "total_neighbors": len(neighbors),
+            "reason": "All neighbors are in the vault root — no folder to suggest",
+        }
 
     best_folder, votes = Counter(folder_votes).most_common(1)[0]
     return {

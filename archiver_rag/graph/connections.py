@@ -13,7 +13,7 @@ def get_connections(note: str, depth: int = 1) -> dict:
         "note": note_stem,
         "depth": depth,
         "connections": {},
-        "all_connected": set()
+        "all_connected": set(),
     }
 
     # BFS traversal up to depth
@@ -38,7 +38,7 @@ def get_connections(note: str, depth: int = 1) -> dict:
         label = "direct" if d == 1 else f"depth_{d}"
         result["connections"][label] = {
             "outgoing": sorted(layer_out),
-            "incoming": sorted(layer_in)
+            "incoming": sorted(layer_in),
         }
 
         result["all_connected"].update(layer_out)
