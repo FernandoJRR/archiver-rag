@@ -1,26 +1,19 @@
 from pathlib import Path
 import re
 import os
-import yaml
 import uuid
 
 from archiver_rag.core.embedder import embed
 from archiver_rag.core.chunker import chunk
 from archiver_rag.core.db import collection
-from archiver_rag.utils import get_vault_path, build_link_map, log
+from archiver_rag.utils import (
+    get_vault_path,
+    build_link_map,
+    extract_frontmatter,
+    is_indexable_note,
+    log,
+)
 from archiver_rag.wikilinks import extract_wikilinks
-
-
-def _extract_frontmatter(content: str) -> tuple[dict, str]:
-    if not content.startswith("---"):
-        return {}, content
-    try:
-        end = content.index("---", 3)
-        fm_text = content[3:end].strip()
-        body = content[end + 3 :].strip()
-        return yaml.safe_load(fm_text) or {}, body
-    except Exception:
-        return {}, content
 
 
 def _extract_tags(frontmatter: dict, content: str) -> list[str]:
@@ -59,7 +52,7 @@ def ingest_file(filepath: str):
     vault = get_vault_path()
     note = Path(filepath)
 
-    if not note.exists() or note.suffix != ".md":
+    if not note.exists() or not is_indexable_note(note):
         return
 
     try:
@@ -71,7 +64,7 @@ def ingest_file(filepath: str):
         return
 
     # Parse context structure
-    frontmatter, body = _extract_frontmatter(raw)
+    frontmatter, body = extract_frontmatter(raw)
     links = extract_wikilinks(raw)
     tags = _extract_tags(frontmatter, body)
     title = str(frontmatter.get("title", note.stem))
@@ -160,8 +153,9 @@ def ingest_vault(vault_path: str):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
 
         for file in files:
-            if file.endswith(".md"):
-                ingest_file(os.path.join(root, file))
+            p = Path(root) / file
+            if is_indexable_note(p):
+                ingest_file(str(p))
 
     prune_orphans(vault_path)
 
@@ -184,9 +178,10 @@ def sync_vault(vault_path: str) -> dict:
     for root, dirs, files in os.walk(vault_path):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
         for file in files:
-            if not file.endswith(".md"):
+            p = Path(root) / file
+            if not is_indexable_note(p):
                 continue
-            filepath = os.path.join(root, file)
+            filepath = str(p)
             try:
                 source = str(Path(filepath).relative_to(Path(vault_path)))
             except ValueError:

@@ -6,7 +6,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from archiver_rag.core.ingest import ingest_file
 from archiver_rag.core.db import collection
-from archiver_rag.utils import get_vault_path, is_hidden_path, log as _log
+from archiver_rag.utils import get_vault_path, is_hidden_path, is_folder_note, is_indexable_note, log as _log
 import os
 
 from archiver_rag.graph.linker import auto_link
@@ -51,15 +51,53 @@ def _is_spurious_delete(path: Path, settle: float = DELETE_SETTLE_SECONDS) -> bo
     return False
 
 
-def _get_cluster_config() -> tuple[bool, int]:
+def _get_cluster_config() -> tuple[bool, int, float, bool]:
+    """Return (auto_cluster, threshold, placement_similarity_threshold, type_fallback).
+
+    IMPORTANT: Must NOT be refactored through load_config() — load_config() returns {} on
+    error, and config.get("auto_cluster", True) would be True, which starts moving files
+    on a corrupt config. The except path here returns auto_cluster=False (do nothing).
+    """
     try:
         import json
 
         config_path = Path.home() / ".archiver-rag" / "config.json"
         config = json.loads(config_path.read_text())
-        return config.get("auto_cluster", True), int(config.get("cluster_threshold", 5))
+        return (
+            config.get("auto_cluster", True),
+            int(config.get("cluster_threshold", 5)),
+            float(config.get("placement_similarity_threshold", 0.55)),
+            bool(config.get("type_fallback", True)),
+        )
     except Exception:
-        return False, 5
+        return False, 5, 0.55, True
+
+
+def _folder_note_rel_folder(vault_path: str, folder_note_path: str) -> str | None:
+    """vault-relative parent of a _folder.md path, or None if outside the vault."""
+    try:
+        rel = str(Path(folder_note_path).parent.relative_to(vault_path))
+        return "." if rel == "" else rel
+    except ValueError:
+        return None
+
+
+def _refresh_folder_centroid(path: str) -> None:
+    """Recompute and cache the centroid for the folder whose _folder.md just changed.
+
+    Does NOT call ingest_file or auto_link — those would put _folder.md chunks in
+    ChromaDB, which prune_orphans cannot clean up because the file exists on disk.
+    The only write is to ~/.archiver-rag/centroids.json, outside the vault, generating
+    no watchdog event and no re-entrancy risk.
+    """
+    vault_path = get_vault_path()
+    rel_folder = _folder_note_rel_folder(vault_path, path)
+    if rel_folder is None:
+        return
+    from archiver_rag.graph.centroids import refresh_centroid
+    changed = refresh_centroid(Path(vault_path), rel_folder)
+    if changed:
+        _log(f"Folder description changed: {rel_folder}/ → centroid recomputed")
 
 
 class VaultHandler(FileSystemEventHandler):
@@ -68,42 +106,75 @@ class VaultHandler(FileSystemEventHandler):
 
         Only ever call this for genuinely NEW notes. It moves files, and `on_moved`
         fires on every save, so running it on edits would relocate notes as you type.
+
+        Stage B: placement is now by cosine similarity against declared folder descriptions
+        (graph.placement.suggest_folder), not by wikilink-neighbour vote. The is_new_note
+        gate and the accumulator → cluster_vault fallback are unchanged.
         """
         global _new_notes_since_cluster
-        auto_cluster, threshold = _get_cluster_config()
+        auto_cluster, cluster_threshold, sim_threshold, type_fallback = _get_cluster_config()
         if not auto_cluster:
             return
 
-        from archiver_rag.graph.clustering import (
-            cluster_note,
-            cluster_vault,
-            apply_clusters,
-        )
+        from archiver_rag.graph.placement import suggest_folder
+        from archiver_rag.graph.clustering import cluster_vault, apply_clusters
         from archiver_rag.vault.reorganize import move_notes
 
-        suggestion = cluster_note(Path(path).name)
+        vault = Path(get_vault_path())
+        note_path = Path(path)
+        suggestion = suggest_folder(
+            vault,
+            note_path,
+            threshold=sim_threshold,
+            type_fallback=type_fallback,
+        )
         target = suggestion.get("suggested_folder")
         if target:
-            # Already where clustering wants it. Without this the handler kept
-            # re-issuing a move onto the note's own path — move_notes rejects it as
-            # "destination already exists", but each attempt still logged a bogus
-            # "Auto-placed" and re-triggered ingest + auto_link.
-            if Path(path).parent.name == target:
-                return
-            vault = Path(get_vault_path())
+            # Anti-churn: compare the full vault-relative parent path, not just the
+            # immediate directory name. A note in "Projects/Weekly" whose target is
+            # "Weekly" must NOT be skipped by a name-only match — and conversely, a note
+            # already in its target folder must not be re-moved. Use "." for vault root.
             try:
-                src = str(Path(path).relative_to(vault))
+                current_rel_parent = str(note_path.parent.relative_to(vault))
             except ValueError:
                 return
+            if current_rel_parent == target or (current_rel_parent == "." and target == "."):
+                return
+
+            try:
+                src = str(note_path.relative_to(vault))
+            except ValueError:
+                return
+
+            # If the destination folder does not exist yet, write its _folder.md first
+            # (§6 "Carpetas nuevas") so it is not born orphaned. move_notes handles mkdir.
+            dest_dir = vault / target
+            if not dest_dir.exists():
+                from archiver_rag.vault.folder_notes import FolderNote, write_folder_note
+                from datetime import date
+                new_sidecar = FolderNote(
+                    rel_folder=target,
+                    description_terms=[],
+                    note_count=0,
+                    updated=date.today().isoformat(),
+                    source="auto",
+                )
+                write_folder_note(vault, new_sidecar)
+
             result = move_notes(
-                [{"source": src, "destination": f"{target}/{Path(path).name}"}]
+                [{"source": src, "destination": f"{target}/{note_path.name}"}]
             )
             if result.get("moved"):
-                _log(f"Auto-placed {Path(path).name} → {target}/")
+                reason = suggestion.get("reason", "")
+                sim = suggestion.get("similarity", 0.0)
+                _log(
+                    f"Auto-placed {note_path.name} → {target}/ "
+                    f"({reason}, {sim:.2f})"
+                )
             return
 
         _new_notes_since_cluster += 1
-        if _new_notes_since_cluster >= threshold:
+        if _new_notes_since_cluster >= cluster_threshold:
             _new_notes_since_cluster = 0
             _log("Auto-clustering vault...")
             result = cluster_vault(min_cluster_size=2)
@@ -113,7 +184,13 @@ class VaultHandler(FileSystemEventHandler):
 
     def on_created(self, event):
         path = str(event.src_path)
-        if event.is_directory or not path.endswith(".md") or is_hidden_path(Path(path)):
+        if event.is_directory:
+            return
+        p = Path(path)
+        if is_folder_note(p) and not is_hidden_path(p):
+            _refresh_folder_centroid(path)
+            return
+        if not is_indexable_note(p):
             return
         _log(f"New file detected: {path}")
         ingest_file(path)
@@ -122,7 +199,13 @@ class VaultHandler(FileSystemEventHandler):
 
     def on_modified(self, event):
         path = str(event.src_path)
-        if event.is_directory or not path.endswith(".md") or is_hidden_path(Path(path)):
+        if event.is_directory:
+            return
+        p = Path(path)
+        if is_folder_note(p) and not is_hidden_path(p):
+            _refresh_folder_centroid(path)
+            return
+        if not is_indexable_note(p):
             return
         _log(f"File modified: {path}")
         ingest_file(path)
@@ -130,9 +213,23 @@ class VaultHandler(FileSystemEventHandler):
 
     def on_deleted(self, event):
         path = str(event.src_path)
-        if event.is_directory or not path.endswith(".md") or is_hidden_path(Path(path)):
+        if event.is_directory:
             return
-        if _is_spurious_delete(Path(path)):
+        p = Path(path)
+        if is_folder_note(p) and not is_hidden_path(p):
+            # Spurious-delete guard applies to sidecars too
+            if _is_spurious_delete(p):
+                return
+            vault_path = get_vault_path()
+            rel_folder = _folder_note_rel_folder(vault_path, path)
+            if rel_folder:
+                from archiver_rag.graph.centroids import drop_centroid
+                if drop_centroid(rel_folder):
+                    _log(f"Folder sidecar deleted: {rel_folder}/ → centroid dropped")
+            return
+        if not is_indexable_note(p):
+            return
+        if _is_spurious_delete(p):
             return
         vault_path = get_vault_path()
         try:
@@ -155,14 +252,37 @@ class VaultHandler(FileSystemEventHandler):
         move, with a source that is not a `.md` at all. Keying off `src` alone
         silently dropped every such save: the note never reached the index.
         Both ends must be considered independently.
+
+        The same atomic-save pattern applies to _folder.md: the tmp→sidecar rename
+        arrives here, not in on_modified. So _folder.md changes land in this branch.
         """
         src = str(event.src_path)
         dst = str(event.dest_path)
         if event.is_directory:
             return
 
-        src_is_note = src.endswith(".md") and not is_hidden_path(Path(src))
-        dst_is_note = dst.endswith(".md") and not is_hidden_path(Path(dst))
+        src_p = Path(src)
+        dst_p = Path(dst)
+
+        # ── _folder.md handling ──────────────────────────────────────────────
+        src_is_folder_note = is_folder_note(src_p) and not is_hidden_path(src_p)
+        dst_is_folder_note = is_folder_note(dst_p) and not is_hidden_path(dst_p)
+
+        if dst_is_folder_note:
+            # Atomic save of _folder.md: tmp → sidecar — refresh centroid
+            _refresh_folder_centroid(dst)
+        elif src_is_folder_note:
+            # Sidecar moved out of its folder or renamed away — drop centroid
+            vault_path = get_vault_path()
+            rel_folder = _folder_note_rel_folder(vault_path, src)
+            if rel_folder:
+                from archiver_rag.graph.centroids import drop_centroid
+                if drop_centroid(rel_folder):
+                    _log(f"Folder sidecar moved: {rel_folder}/ → centroid dropped")
+        # ── end _folder.md handling ──────────────────────────────────────────
+
+        src_is_note = is_indexable_note(src_p)
+        dst_is_note = is_indexable_note(dst_p)
         if not src_is_note and not dst_is_note:
             return
 

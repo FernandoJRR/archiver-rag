@@ -138,7 +138,12 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="cluster_note",
-            description="Suggest a folder for a single note based on where its linked neighbors live. Set apply=true to move immediately.",
+            description=(
+                "Suggest a folder for a single note using semantic similarity against folder descriptions. "
+                "Returns suggested_folder (primary, semantic), similarity score, reason "
+                "('semantic' | 'type' | 'none'), and neighbor_vote (secondary wikilink-based vote for reference). "
+                "Set apply=true to move the note to the semantic suggestion immediately."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -225,17 +230,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     elif name == "cluster_note":
         from archiver_rag.graph.clustering import cluster_note as _cn
 
-        result = _cn(arguments["note"])
-        if arguments.get("apply") and result.get("suggested_folder"):
-            move_results = move_notes(
-                [
-                    {
-                        "source": arguments["note"],
-                        "destination": f"{result['suggested_folder']}/{Path(arguments['note']).name}",
-                    }
-                ]
-            )
-            result["move"] = move_results
+        result = _cn(arguments["note"], apply=bool(arguments.get("apply", False)))
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
     elif name == "get_connections":
         result = get_connections(arguments["note"], arguments.get("depth", 1))

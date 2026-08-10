@@ -34,4 +34,7 @@ packages = ["archiver_rag"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["vault: requires real vault (opt-in, set ARCHIVER_RAG_VAULT)"]
+markers = [
+    "vault: requires real vault (opt-in, set ARCHIVER_RAG_VAULT)",
+    "slow: loads the sentence-transformers model (embed() calls)",
+]

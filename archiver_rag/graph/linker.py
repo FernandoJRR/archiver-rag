@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 from archiver_rag.core.embedder import embed
 from archiver_rag.core.db import collection
-from archiver_rag.utils import get_vault_path, note_stems
+from archiver_rag.utils import get_vault_path, note_stems, is_indexable_note
 from archiver_rag.wikilinks import extract_wikilinks
 
 
@@ -133,7 +133,7 @@ def auto_link(filepath: str, min_score: float = 0.55, max_links: int = 5):
     vault = Path(get_vault_path())
     note = Path(filepath)
 
-    if not note.exists() or note.suffix != ".md":
+    if not note.exists() or not is_indexable_note(note):
         return
 
     content = note.read_text(encoding="utf-8", errors="ignore")

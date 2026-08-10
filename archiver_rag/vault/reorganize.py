@@ -1,7 +1,7 @@
 import re
 import shutil
 from pathlib import Path
-from archiver_rag.utils import get_vault_path
+from archiver_rag.utils import get_vault_path, is_indexable_note
 
 
 def _update_wikilinks(vault: Path, old_stem: str, new_stem: str):
@@ -26,7 +26,7 @@ def _update_wikilinks(vault: Path, old_stem: str, new_stem: str):
     )
 
     for md_file in vault.rglob("*.md"):
-        if any(p.startswith(".") for p in md_file.relative_to(vault).parts):
+        if not is_indexable_note(md_file):
             continue
         try:
             content = md_file.read_text(encoding="utf-8")

@@ -1,14 +1,12 @@
 import re
 from pathlib import Path
-from archiver_rag.utils import get_vault_path, note_stems
+from archiver_rag.utils import get_vault_path, note_stems, is_indexable_note
 from archiver_rag.wikilinks import extract_wikilinks
 
 
 def vault_status() -> dict:
     vault = Path(get_vault_path())
-    all_notes = [
-        f for f in vault.rglob("*.md") if not any(p.startswith(".") for p in f.parts)
-    ]
+    all_notes = [f for f in vault.rglob("*.md") if is_indexable_note(f)]
     all_folders = [
         d
         for d in vault.rglob("*")

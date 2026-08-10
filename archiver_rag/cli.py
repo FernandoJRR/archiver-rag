@@ -339,30 +339,269 @@ def cluster(
 
 @app.command()
 def place(
-    note: str = typer.Argument(..., help="Note filename e.g. AuditTrail.md"),
-    apply: bool = typer.Option(False, "--apply", help="Move the note"),
+    note: str = typer.Argument(None, help="Note filename e.g. AuditTrail.md"),
+    apply: bool = typer.Option(False, "--apply", help="Move the note(s)"),
+    all_notes: bool = typer.Option(False, "--all", help="Report placement for every note (dry-run unless --apply)"),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation when using --all --apply"),
 ):
-    """Suggest or apply folder placement for a single note"""
-    from archiver_rag.graph.clustering import cluster_note as _cluster_note
+    """Suggest or apply semantic folder placement.
+
+    Single note: suggest (or move with --apply).
+    --all: show current vs suggested folder for every note, with before/after distribution.
+    --all --apply: batch move all notes whose suggestion differs from current folder.
+    """
+    from archiver_rag.graph.placement import suggest_folder
+    from archiver_rag.utils import get_vault_path, load_config
     from archiver_rag.vault.reorganize import move_notes
 
-    result = _cluster_note(note)
-    if result["suggested_folder"]:
-        print(f"\n[green]Suggested:[/green] {result['suggested_folder']}/")
-        print(f"{result['reason']}")
-        if apply:
-            stem = Path(note).stem
-            from archiver_rag.utils import get_vault_path
+    vault = Path(get_vault_path())
+    cfg = load_config()
+    threshold = float(cfg.get("placement_similarity_threshold", 0.55))
+    type_fb = bool(cfg.get("type_fallback", True))
 
-            vault = Path(get_vault_path())
-            found = list(vault.rglob(f"{stem}.md"))
-            if found:
-                src = str(found[0].relative_to(vault))
-                dst = f"{result['suggested_folder']}/{Path(note).name}"
-                move_notes([{"source": src, "destination": dst}])
-                print(f"[green]✅ Moved to {dst}[/green]")
+    if all_notes:
+        # ── §9.7 vault-wide dry-run / batch move ────────────────────────────
+        from archiver_rag.utils import is_indexable_note
+
+        all_note_paths = [f for f in vault.rglob("*.md") if is_indexable_note(f)]
+        if not all_note_paths:
+            print("[dim]No notes found.[/dim]")
+            return
+
+        rows = []
+        for np_ in sorted(all_note_paths):
+            suggestion = suggest_folder(vault, np_, threshold=threshold, type_fallback=type_fb)
+            try:
+                current = str(np_.parent.relative_to(vault))
+            except ValueError:
+                current = "."
+            rows.append({
+                "path": str(np_.relative_to(vault)),
+                "current": current if current != "." else "(root)",
+                "suggested": suggestion["suggested_folder"] or "(none)",
+                "similarity": suggestion["similarity"],
+                "reason": suggestion["reason"],
+                "would_move": suggestion["suggested_folder"] is not None and current != suggestion["suggested_folder"],
+            })
+
+        # Current distribution
+        from collections import Counter as _Counter
+        current_dist = _Counter(r["current"] for r in rows)
+        suggested_dist = _Counter(
+            r["suggested"] for r in rows if r["suggested"] != "(none)"
+        )
+
+        print(f"\n[bold]Placement report — {len(rows)} notes[/bold]\n")
+        moves_needed = [r for r in rows if r["would_move"]]
+        stays = [r for r in rows if not r["would_move"]]
+
+        if moves_needed:
+            print(f"[yellow]Would move ({len(moves_needed)}):[/yellow]")
+            for r in moves_needed:
+                sim_str = f"{r['similarity']:.2f}" if r["similarity"] else "—"
+                print(f"  {r['path']}")
+                print(f"    {r['current']} → {r['suggested']}  ({r['reason']}, {sim_str})")
+        else:
+            print("[green]All notes are already in their suggested folder.[/green]")
+
+        print(f"\n[bold]Current distribution:[/bold]")
+        for folder, count in current_dist.most_common():
+            pct = 100 * count // len(rows)
+            print(f"  {folder}: {count} ({pct}%)")
+
+        if moves_needed:
+            print(f"\n[bold]Projected distribution (after moves):[/bold]")
+            for folder, count in suggested_dist.most_common():
+                pct = 100 * count // len(rows)
+                print(f"  {folder}: {count} ({pct}%)")
+
+        if apply and moves_needed:
+            if not yes:
+                from rich.prompt import Confirm
+                if not Confirm.ask(f"\nMove {len(moves_needed)} note(s)?", default=False):
+                    print("Aborted.")
+                    return
+            batch = [
+                {"source": r["path"], "destination": f"{r['suggested']}/{Path(r['path']).name}"}
+                for r in moves_needed
+            ]
+            result = move_notes(batch)
+            print(f"\n[green]✅ Moved {result['moved']}[/green]")
+            if result.get("errors"):
+                for e in result["errors"]:
+                    print(f"[red]  Error:[/red] {e['source']} — {e['error']}")
+        elif moves_needed and not apply:
+            print(f"\n[dim]Run with --apply to move {len(moves_needed)} note(s)[/dim]")
+        return
+
+    # ── Single note ──────────────────────────────────────────────────────────
+    if note is None:
+        print("[red]Provide a note filename or use --all[/red]")
+        raise typer.Exit(1)
+
+    stem = Path(note).stem
+    found = list(vault.rglob(f"{stem}.md"))
+    if not found:
+        print(f"[red]Note not found: {note}[/red]")
+        raise typer.Exit(1)
+    note_path = found[0]
+
+    result = suggest_folder(vault, note_path, threshold=threshold, type_fallback=type_fb)
+    if result["suggested_folder"]:
+        sim_str = f"{result['similarity']:.2f}" if result["similarity"] else "—"
+        print(f"\n[green]Suggested:[/green] {result['suggested_folder']}/  ({result['reason']}, {sim_str})")
+        if result.get("scores"):
+            top = sorted(result["scores"].items(), key=lambda kv: kv[1], reverse=True)[:5]
+            print("[dim]Top scores:[/dim]")
+            for folder, score in top:
+                print(f"  {folder}: {score:.3f}")
+        vote = result.get("neighbor_vote", {})
+        if vote and vote.get("suggested_folder"):
+            print(f"[dim]Neighbour vote:[/dim] {vote['suggested_folder']} ({vote.get('reason', '')})")
+        if apply:
+            src = str(note_path.relative_to(vault))
+            dst = f"{result['suggested_folder']}/{note_path.name}"
+            move_notes([{"source": src, "destination": dst}])
+            print(f"[green]✅ Moved to {dst}[/green]")
     else:
-        print(f"[yellow]No suggestion: {result['reason']}[/yellow]")
+        print(f"[yellow]No suggestion ({result['reason']})[/yellow]")
+        if result.get("scores"):
+            top = sorted(result["scores"].items(), key=lambda kv: kv[1], reverse=True)[:5]
+            print("[dim]Best scores (all below threshold):[/dim]")
+            for folder, score in top:
+                print(f"  {folder}: {score:.3f}")
+
+
+@app.command(name="describe")
+def describe_cmd(
+    all_: bool = typer.Option(
+        False, "--all", help="Regenerate source:auto descriptions (never touches source:manual)"
+    ),
+    folder: str = typer.Option(
+        None, "--folder", help="Operate on one folder only (vault-relative path)"
+    ),
+    set_terms: str = typer.Option(
+        None, "--set", help="Explicitly set terms for --folder (marks source:manual)"
+    ),
+):
+    """Generate or update per-folder description files (_folder.md)
+
+    Generates descriptions for folders that have none. Idempotent — existing
+    source:manual descriptions are never overwritten by automatic runs.
+    """
+    from archiver_rag.utils import get_vault_path, load_config
+    from archiver_rag.vault.folder_notes import (
+        describable_folders,
+        read_folder_note,
+        write_folder_note,
+        FolderNote,
+    )
+    from archiver_rag.graph.terms import extract_terms_all, extract_terms
+    from datetime import date
+
+    vault = Path(get_vault_path())
+    cfg = load_config()
+    term_extraction_min_notes = cfg.get("advanced", {}).get("term_extraction_min_notes", 4)
+    max_terms = cfg.get("advanced", {}).get("max_terms", 6)
+    mmr_lambda = cfg.get("advanced", {}).get("mmr_lambda", 0.5)
+
+    # --set requires --folder
+    if set_terms is not None and folder is None:
+        print("[red]--set requires --folder[/red]")
+        raise typer.Exit(1)
+
+    if set_terms is not None:
+        # Explicit authorship: parse comma-separated terms, write source:manual
+        terms = [t.strip() for t in set_terms.split(",") if t.strip()]
+        existing = read_folder_note(vault, folder)
+        note = FolderNote(
+            rel_folder=folder,
+            description_terms=terms,
+            distinctive=existing.distinctive if existing else [],
+            note_count=existing.note_count if existing else 0,
+            updated=date.today().isoformat(),
+            source="manual",
+        )
+        path = write_folder_note(vault, note)
+        print(f"[green]✅ Set (manual):[/green] {folder} → {terms}")
+        print(f"[dim]{path}[/dim]")
+        return
+
+    # Determine which folders to process
+    if folder is not None:
+        targets = [folder]
+    else:
+        targets = describable_folders(vault)
+
+    if not targets:
+        print("[dim]No describable folders found.[/dim]")
+        return
+
+    from archiver_rag.graph.terms import alpha_for, blend_terms
+    from archiver_rag.utils import is_indexable_note
+
+    # Pre-extract for all folders in one pass (shared IDF table)
+    print(f"[yellow]Extracting terms for {len(targets)} folder(s)...[/yellow]")
+    all_terms = extract_terms_all(
+        vault,
+        term_extraction_min_notes=term_extraction_min_notes,
+        max_terms=max_terms,
+        mmr_lambda=mmr_lambda,
+    )
+
+    alpha_scale = cfg.get("advanced", {}).get("alpha_curve", {}).get("scale", 1.0)
+
+    written = 0
+    skipped = 0
+    for rel_folder in targets:
+        existing = read_folder_note(vault, rel_folder)
+        if existing is not None and existing.source == "manual":
+            print(f"[dim]  skipped (manual):[/dim] {rel_folder}")
+            skipped += 1
+            continue
+        if existing is not None and not all_:
+            print(f"[dim]  skipped (exists):[/dim] {rel_folder}")
+            skipped += 1
+            continue
+
+        folder_dir = vault / rel_folder
+        direct_notes = [
+            f for f in folder_dir.iterdir()
+            if f.is_file() and is_indexable_note(f)
+        ]
+        desc_terms_new, dist_terms_new = all_terms.get(rel_folder, ([], []))
+
+        if existing is not None and existing.description_terms:
+            # §4: blend old description with new via α
+            alpha = alpha_for(existing.note_count, scale=alpha_scale)
+            desc_terms = blend_terms(existing.description_terms, desc_terms_new, alpha, max_terms)
+            # Pathology detector (§4.1): count rising, gravity-well warning
+            if len(direct_notes) > existing.note_count and existing.note_count > 0:
+                growth_ratio = len(direct_notes) / existing.note_count
+                if growth_ratio >= 1.15 and alpha < 0.4:
+                    print(
+                        f"[yellow]  ⚠️ gravity-well forming:[/yellow] {rel_folder} "
+                        f"(count {existing.note_count}→{len(direct_notes)}, α={alpha:.2f})"
+                    )
+        else:
+            desc_terms = desc_terms_new
+
+        note = FolderNote(
+            rel_folder=rel_folder,
+            description_terms=desc_terms,
+            distinctive=dist_terms_new,
+            note_count=len(direct_notes),
+            updated=date.today().isoformat(),
+            source="auto",
+        )
+        write_folder_note(vault, note)
+        src_label = "auto" if (existing is None) else "regenerated"
+        print(
+            f"[green]  {src_label}:[/green] {rel_folder} → {desc_terms[:4]}"
+        )
+        written += 1
+
+    print(f"\n[green]✅ {written} written, {skipped} skipped[/green]")
 
 
 @app.command(name="config")
@@ -372,6 +611,12 @@ def config_cmd(
     ),
     cluster_threshold: int = typer.Option(
         None, "--cluster-threshold", help="New notes before full re-cluster"
+    ),
+    placement_threshold: float = typer.Option(
+        None, "--placement-threshold", help="Cosine similarity threshold for semantic placement (0–1, default 0.55)"
+    ),
+    type_fallback: bool = typer.Option(
+        None, "--type-fallback/--no-type-fallback", help="Fall back to frontmatter type: when similarity is below threshold"
     ),
 ):
     """Update archiver-rag configuration"""
@@ -383,6 +628,10 @@ def config_cmd(
         cfg["auto_cluster"] = auto_cluster
     if cluster_threshold is not None:
         cfg["cluster_threshold"] = cluster_threshold
+    if placement_threshold is not None:
+        cfg["placement_similarity_threshold"] = placement_threshold
+    if type_fallback is not None:
+        cfg["type_fallback"] = type_fallback
     CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
     print("[green]✅ Config updated[/green]")
 
