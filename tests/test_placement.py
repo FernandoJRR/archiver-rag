@@ -67,6 +67,37 @@ def test_note_text_missing_file_returns_empty(tmp_path):
     assert note_text(p) == ""
 
 
+def test_note_text_includes_tags_list(tmp_path):
+    p = tmp_path / "note.md"
+    p.write_text(
+        '---\ntype: decision\ntags: ["weekly-cuisine", "sqlite"]\n---\nBody here.',
+        encoding="utf-8",
+    )
+    text = note_text(p)
+    assert "weekly-cuisine" in text
+    assert "sqlite" in text
+    assert "type: decision" not in text
+    assert "Body here" in text
+
+
+def test_note_text_includes_tags_comma_string(tmp_path):
+    p = tmp_path / "note.md"
+    p.write_text(
+        '---\ntags: "weekly-cuisine, sqlite"\n---\nBody here.',
+        encoding="utf-8",
+    )
+    text = note_text(p)
+    assert "weekly-cuisine" in text
+    assert "sqlite" in text
+
+
+def test_note_text_no_tags_field_unchanged(tmp_path):
+    p = tmp_path / "watcher-atomic-save.md"
+    p.write_text("Content.", encoding="utf-8")
+    text = note_text(p)
+    assert text == "watcher atomic save. Content."
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # _type_folder
 # ──────────────────────────────────────────────────────────────────────────────

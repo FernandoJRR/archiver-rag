@@ -82,9 +82,9 @@ def write_folder_note(vault: Path, note: FolderNote) -> Path:
     terms_preview = ", ".join(note.description_terms[:3])
     dist_preview = ", ".join(note.distinctive[:2])
     if terms_preview and dist_preview:
-        body = f"Notas sobre {terms_preview}. Términos distintivos: {dist_preview}."
+        body = f"Themes {terms_preview}. Terms: {dist_preview}."
     elif terms_preview:
-        body = f"Notas sobre {terms_preview}."
+        body = f"Themes {terms_preview}."
     else:
         body = ""
 

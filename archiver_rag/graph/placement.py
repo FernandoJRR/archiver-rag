@@ -27,20 +27,28 @@ def note_text(path: Path) -> str:
     writes ~12 neighbour slugs per note — those describe other notes, not this one).
     Prepends the stem with spaces instead of hyphens because the stem is identity
     and carries real signal, but dense hyphens look like noise to the model.
+
+    Tags are re-added (not the rest of the frontmatter): they're author-curated
+    project identity that a generic technical body otherwise dilutes when comparing
+    against folder descriptions. See decision/note-tags-should-feed-the-placement-
+    embedding-measured-signal-dilution in the vault.
     """
     try:
         raw = path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return ""
 
-    _fm, body = extract_frontmatter(raw)
+    fm, body = extract_frontmatter(raw)
 
-    # Strip ## Related section — lazy import avoids a module-level cycle.
-    from archiver_rag.graph.terms import _strip_related_section
+    # Lazy imports avoid a module-level cycle.
+    from archiver_rag.graph.terms import _strip_related_section, _note_tags
     body = _strip_related_section(body)
 
     stem_readable = re.sub(r"[-_]+", " ", path.stem)
-    text = f"{stem_readable}. {body}".strip()
+    tags = _note_tags(fm)
+    prefix = f"{stem_readable}. {' '.join(tags)}" if tags else stem_readable
+
+    text = f"{prefix}. {body}".strip()
     # Truncate at roughly 512 words (comfortable for all-MiniLM-L6-v2's 256-token window)
     words = text.split()
     if len(words) > 512:
