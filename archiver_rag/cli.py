@@ -537,8 +537,7 @@ def describe_cmd(
         print("[dim]No describable folders found.[/dim]")
         return
 
-    from archiver_rag.graph.terms import alpha_for, blend_terms
-    from archiver_rag.utils import is_indexable_note
+    from archiver_rag.vault.folder_notes import apply_extracted_terms
 
     # Pre-extract for all folders in one pass (shared IDF table)
     print(f"[yellow]Extracting terms for {len(targets)} folder(s)...[/yellow]")
@@ -564,40 +563,22 @@ def describe_cmd(
             skipped += 1
             continue
 
-        folder_dir = vault / rel_folder
-        direct_notes = [
-            f for f in folder_dir.iterdir()
-            if f.is_file() and is_indexable_note(f)
-        ]
         desc_terms_new, dist_terms_new = all_terms.get(rel_folder, ([], []))
-
-        if existing is not None and existing.description_terms:
-            # §4: blend old description with new via α
-            alpha = alpha_for(existing.note_count, scale=alpha_scale)
-            desc_terms = blend_terms(existing.description_terms, desc_terms_new, alpha, max_terms)
-            # Pathology detector (§4.1): count rising, gravity-well warning
-            if len(direct_notes) > existing.note_count and existing.note_count > 0:
-                growth_ratio = len(direct_notes) / existing.note_count
-                if growth_ratio >= 1.15 and alpha < 0.4:
-                    print(
-                        f"[yellow]  ⚠️ gravity-well forming:[/yellow] {rel_folder} "
-                        f"(count {existing.note_count}→{len(direct_notes)}, α={alpha:.2f})"
-                    )
-        else:
-            desc_terms = desc_terms_new
-
-        note = FolderNote(
-            rel_folder=rel_folder,
-            description_terms=desc_terms,
-            distinctive=dist_terms_new,
-            note_count=len(direct_notes),
-            updated=date.today().isoformat(),
-            source="auto",
+        result = apply_extracted_terms(
+            vault, rel_folder, desc_terms_new, dist_terms_new,
+            alpha_scale=alpha_scale, max_terms=max_terms,
         )
-        write_folder_note(vault, note)
-        src_label = "auto" if (existing is None) else "regenerated"
+
+        if result["gravity_well_warning"]:
+            note = result["folder_note"]
+            print(
+                f"[yellow]  ⚠️ gravity-well forming:[/yellow] {rel_folder} "
+                f"(count → {note.note_count}, α={result['alpha']:.2f})"
+            )
+
+        src_label = "auto" if result["action"] == "created" else "regenerated"
         print(
-            f"[green]  {src_label}:[/green] {rel_folder} → {desc_terms[:4]}"
+            f"[green]  {src_label}:[/green] {rel_folder} → {result['folder_note'].description_terms[:4]}"
         )
         written += 1
 
@@ -618,6 +599,9 @@ def config_cmd(
     type_fallback: bool = typer.Option(
         None, "--type-fallback/--no-type-fallback", help="Fall back to frontmatter type: when similarity is below threshold"
     ),
+    auto_describe: bool = typer.Option(
+        None, "--auto-describe/--no-auto-describe", help="Enable watcher auto-regeneration of folder descriptions on membership change"
+    ),
 ):
     """Update archiver-rag configuration"""
     import json
@@ -632,6 +616,8 @@ def config_cmd(
         cfg["placement_similarity_threshold"] = placement_threshold
     if type_fallback is not None:
         cfg["type_fallback"] = type_fallback
+    if auto_describe is not None:
+        cfg["auto_describe"] = auto_describe
     CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
     print("[green]✅ Config updated[/green]")
 

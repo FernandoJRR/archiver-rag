@@ -97,6 +97,79 @@ def write_folder_note(vault: Path, note: FolderNote) -> Path:
     return path
 
 
+def apply_extracted_terms(
+    vault: Path,
+    rel_folder: str,
+    desc_terms_new: list[str],
+    dist_terms_new: list[str],
+    *,
+    alpha_scale: float = 1.0,
+    max_terms: int = 6,
+) -> dict:
+    """Decide/blend/write a folder's description from freshly extracted terms.
+
+    Shared by `describe_cmd` (CLI, terms pre-extracted in bulk via extract_terms_all)
+    and the watcher's `_maybe_redescribe` (terms extracted per-folder via extract_terms) —
+    both need the identical skip-manual / blend-via-alpha / pathology-check / write
+    policy, only the extraction strategy differs.
+
+    Returns:
+        {
+          "action": "created" | "regenerated" | "skipped_manual",
+          "folder_note": FolderNote | None,   # None only when skipped
+          "alpha": float | None,              # None when created fresh or skipped
+          "gravity_well_warning": bool,
+        }
+    """
+    from datetime import date
+    from archiver_rag.graph.terms import alpha_for, blend_terms
+
+    existing = read_folder_note(vault, rel_folder)
+    if existing is not None and existing.source == "manual":
+        return {
+            "action": "skipped_manual",
+            "folder_note": None,
+            "alpha": None,
+            "gravity_well_warning": False,
+        }
+
+    folder_dir = vault / rel_folder
+    direct_notes = (
+        [f for f in folder_dir.iterdir() if f.is_file() and is_indexable_note(f)]
+        if folder_dir.exists()
+        else []
+    )
+
+    gravity_well_warning = False
+    alpha: float | None = None
+    if existing is not None and existing.description_terms:
+        alpha = alpha_for(existing.note_count, scale=alpha_scale)
+        desc_terms = blend_terms(existing.description_terms, desc_terms_new, alpha, max_terms)
+        if len(direct_notes) > existing.note_count and existing.note_count > 0:
+            growth_ratio = len(direct_notes) / existing.note_count
+            if growth_ratio >= 1.15 and alpha < 0.4:
+                gravity_well_warning = True
+    else:
+        desc_terms = desc_terms_new
+
+    note = FolderNote(
+        rel_folder=rel_folder,
+        description_terms=desc_terms,
+        distinctive=dist_terms_new,
+        note_count=len(direct_notes),
+        updated=date.today().isoformat(),
+        source="auto",
+    )
+    write_folder_note(vault, note)
+
+    return {
+        "action": "created" if existing is None else "regenerated",
+        "folder_note": note,
+        "alpha": alpha,
+        "gravity_well_warning": gravity_well_warning,
+    }
+
+
 def described_folders(vault: Path) -> dict[str, FolderNote]:
     """All folders that have a readable _folder.md, keyed by vault-relative path."""
     result: dict[str, FolderNote] = {}

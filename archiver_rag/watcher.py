@@ -73,6 +73,77 @@ def _get_cluster_config() -> tuple[bool, int, float, bool]:
         return False, 5, 0.55, True
 
 
+def _get_describe_config() -> tuple[bool, int, int, float, float]:
+    """Return (auto_describe, term_extraction_min_notes, max_terms, mmr_lambda, alpha_scale).
+
+    Same safety contract as _get_cluster_config: must NOT go through load_config(),
+    whose {} error-return would make config.get("auto_describe", True) default to True.
+    The except path here returns auto_describe=False (do nothing) — uncertainty must
+    never turn on a behavior that rewrites _folder.md files.
+    """
+    try:
+        import json
+
+        config_path = Path.home() / ".archiver-rag" / "config.json"
+        config = json.loads(config_path.read_text())
+        advanced = config.get("advanced", {})
+        return (
+            bool(config.get("auto_describe", False)),
+            int(advanced.get("term_extraction_min_notes", 4)),
+            int(advanced.get("max_terms", 6)),
+            float(advanced.get("mmr_lambda", 0.5)),
+            float(advanced.get("alpha_curve", {}).get("scale", 1.0)),
+        )
+    except Exception:
+        return False, 4, 6, 0.5, 1.0
+
+
+def _maybe_redescribe(rel_folder: str) -> None:
+    """Regenerate rel_folder's _folder.md when its note membership changed.
+
+    Structural changes only (note created/deleted/moved in or out) — never called from
+    on_modified, since that fires per keystroke-batch save with no debouncing and this
+    does real work (corpus rebuild + MMR). No debounce needed here either: each call is
+    one extract_terms() + one conditional write, both local and cheap at vault scale, and
+    write_folder_note's resulting event is absorbed by _refresh_folder_centroid's own
+    fingerprint no-op — no re-entrancy into note-space (see module docstring for
+    write_folder_note's re-entrancy analysis).
+    """
+    auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale = _get_describe_config()
+    if not auto_describe or rel_folder == ".":
+        return
+
+    vault = Path(get_vault_path())
+    folder_dir = vault / rel_folder
+    if not folder_dir.is_dir():
+        return
+    if not any(f.is_file() and is_indexable_note(f) for f in folder_dir.iterdir()):
+        return
+
+    from archiver_rag.graph.terms import extract_terms
+    from archiver_rag.vault.folder_notes import apply_extracted_terms
+
+    desc, dist = extract_terms(
+        vault, rel_folder,
+        term_extraction_min_notes=min_notes,
+        max_terms=max_terms,
+        mmr_lambda=mmr_lambda,
+    )
+    result = apply_extracted_terms(
+        vault, rel_folder, desc, dist,
+        alpha_scale=alpha_scale, max_terms=max_terms,
+    )
+    if result["action"] == "skipped_manual":
+        return
+    _log(f"Auto-described {rel_folder}/ → {result['action']} ({desc[:4]})")
+    if result["gravity_well_warning"]:
+        note = result["folder_note"]
+        _log(
+            f"  ⚠️ gravity-well forming: {rel_folder} "
+            f"(count → {note.note_count}, α={result['alpha']:.2f})"
+        )
+
+
 def _folder_note_rel_folder(vault_path: str, folder_note_path: str) -> str | None:
     """vault-relative parent of a _folder.md path, or None if outside the vault."""
     try:
@@ -101,7 +172,7 @@ def _refresh_folder_centroid(path: str) -> None:
 
 
 class VaultHandler(FileSystemEventHandler):
-    def _maybe_cluster(self, path: str) -> None:
+    def _maybe_cluster(self, path: str) -> str | None:
         """Auto-place a newly created note, or re-cluster once enough have accumulated.
 
         Only ever call this for genuinely NEW notes. It moves files, and `on_moved`
@@ -110,11 +181,16 @@ class VaultHandler(FileSystemEventHandler):
         Stage B: placement is now by cosine similarity against declared folder descriptions
         (graph.placement.suggest_folder), not by wikilink-neighbour vote. The is_new_note
         gate and the accumulator → cluster_vault fallback are unchanged.
+
+        Returns the rel_folder the note was actually moved into, or None if no move
+        happened (auto_cluster off, no folder cleared threshold, or the cluster_vault
+        fallback ran instead — that path doesn't track individual note destinations).
+        Callers use this to know the note's final resting folder for redescribing it.
         """
         global _new_notes_since_cluster
         auto_cluster, cluster_threshold, sim_threshold, type_fallback = _get_cluster_config()
         if not auto_cluster:
-            return
+            return None
 
         from archiver_rag.graph.placement import suggest_folder
         from archiver_rag.graph.clustering import cluster_vault, apply_clusters
@@ -137,14 +213,14 @@ class VaultHandler(FileSystemEventHandler):
             try:
                 current_rel_parent = str(note_path.parent.relative_to(vault))
             except ValueError:
-                return
+                return None
             if current_rel_parent == target or (current_rel_parent == "." and target == "."):
-                return
+                return None
 
             try:
                 src = str(note_path.relative_to(vault))
             except ValueError:
-                return
+                return None
 
             # If the destination folder does not exist yet, write its _folder.md first
             # (§6 "Carpetas nuevas") so it is not born orphaned. move_notes handles mkdir.
@@ -171,7 +247,8 @@ class VaultHandler(FileSystemEventHandler):
                     f"Auto-placed {note_path.name} → {target}/ "
                     f"({reason}, {sim:.2f})"
                 )
-            return
+                return target
+            return None
 
         _new_notes_since_cluster += 1
         if _new_notes_since_cluster >= cluster_threshold:
@@ -181,6 +258,7 @@ class VaultHandler(FileSystemEventHandler):
             if result["clusters"]:
                 apply_clusters(result["clusters"])
                 _log(f"Clustered into {result['total_clusters']} groups")
+        return None
 
     def on_created(self, event):
         path = str(event.src_path)
@@ -195,7 +273,15 @@ class VaultHandler(FileSystemEventHandler):
         _log(f"New file detected: {path}")
         ingest_file(path)
         auto_link(path)
-        self._maybe_cluster(path)
+        moved_to = self._maybe_cluster(path)
+        final_folder = moved_to
+        if final_folder is None:
+            try:
+                final_folder = str(p.parent.relative_to(get_vault_path()))
+            except ValueError:
+                final_folder = None
+        if final_folder is not None:
+            _maybe_redescribe(final_folder)
 
     def on_modified(self, event):
         path = str(event.src_path)
@@ -244,6 +330,13 @@ class VaultHandler(FileSystemEventHandler):
         if sweep_result["swept"]:
             _log(f"Swept links in: {', '.join(sweep_result['swept'])}")
 
+        try:
+            deleted_from = str(Path(path).parent.relative_to(vault_path))
+        except ValueError:
+            deleted_from = None
+        if deleted_from is not None:
+            _maybe_redescribe(deleted_from)
+
     def on_moved(self, event):
         """Handle renames, moves, and — critically — atomic saves.
 
@@ -289,9 +382,11 @@ class VaultHandler(FileSystemEventHandler):
         vault_path = get_vault_path()
 
         # The note left its old location — drop the stale index entry.
+        src_folder = None
         if src_is_note:
             try:
                 old_source = str(Path(src).relative_to(vault_path))
+                src_folder = str(Path(src).parent.relative_to(vault_path))
             except ValueError:
                 old_source = Path(src).name
             collection.delete(where={"source": old_source})
@@ -320,8 +415,21 @@ class VaultHandler(FileSystemEventHandler):
                     from archiver_rag.vault.reorganize import _update_wikilinks
 
                     _update_wikilinks(Path(vault_path), old_stem, new_stem)
-            if is_new_note:
-                self._maybe_cluster(dst)
+
+            moved_to = self._maybe_cluster(dst) if is_new_note else None
+            dst_folder = moved_to
+            if dst_folder is None:
+                try:
+                    dst_folder = str(Path(dst).parent.relative_to(vault_path))
+                except ValueError:
+                    dst_folder = None
+            # Structural changes only: redescribe the folder the note landed in, and
+            # (if different) the folder it left — a same-folder atomic-save rename has
+            # src_folder == dst_folder and is not a membership change, so skip it there.
+            if dst_folder is not None:
+                _maybe_redescribe(dst_folder)
+            if src_folder is not None and src_folder != dst_folder:
+                _maybe_redescribe(src_folder)
             return
 
         # A note moved out of note-space entirely — into .trash/ (how Obsidian
@@ -332,6 +440,8 @@ class VaultHandler(FileSystemEventHandler):
         sweep_result = sweep_dead_links(Path(vault_path), [Path(src).stem])
         if sweep_result["swept"]:
             _log(f"Swept links in: {', '.join(sweep_result['swept'])}")
+        if src_folder is not None:
+            _maybe_redescribe(src_folder)
 
 
 def watch(vault_path: str):

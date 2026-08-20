@@ -8,6 +8,7 @@ from archiver_rag.vault.folder_notes import (
     write_folder_note,
     described_folders,
     describable_folders,
+    apply_extracted_terms,
 )
 from archiver_rag.utils import FOLDER_NOTE_NAME
 
@@ -164,3 +165,84 @@ def test_describable_folders_includes_correct(tmp_path):
     result = describable_folders(vault)
     assert "decision" in result
     assert "reference" in result
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# apply_extracted_terms — shared decide/blend/write policy (CLI describe + watcher)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_apply_extracted_terms_creates_fresh_when_absent(tmp_path):
+    vault = make_vault(tmp_path)
+    write_note(vault, "gotcha/one.md")
+
+    result = apply_extracted_terms(vault, "gotcha", ["watcher", "spurious"], ["watcher"])
+
+    assert result["action"] == "created"
+    assert result["alpha"] is None
+    assert result["gravity_well_warning"] is False
+    back = read_folder_note(vault, "gotcha")
+    assert back is not None
+    assert back.description_terms == ["watcher", "spurious"]
+    assert back.note_count == 1
+    assert back.source == "auto"
+
+
+def test_apply_extracted_terms_skips_manual(tmp_path):
+    vault = make_vault(tmp_path)
+    write_note(vault, "reference/one.md")
+    write_folder_note(vault, FolderNote(rel_folder="reference", description_terms=["api"], source="manual"))
+
+    result = apply_extracted_terms(vault, "reference", ["new-term"], [])
+
+    assert result["action"] == "skipped_manual"
+    assert result["folder_note"] is None
+    back = read_folder_note(vault, "reference")
+    assert back.description_terms == ["api"], "manual description must never be overwritten"
+
+
+def test_apply_extracted_terms_blends_existing_auto(tmp_path):
+    vault = make_vault(tmp_path)
+    write_note(vault, "decision/one.md")
+    write_folder_note(
+        vault,
+        FolderNote(rel_folder="decision", description_terms=["old-term"], note_count=1, source="auto"),
+    )
+
+    from archiver_rag.graph.terms import alpha_for, blend_terms
+
+    result = apply_extracted_terms(vault, "decision", ["new-term"], ["distinct"])
+
+    assert result["action"] == "regenerated"
+    expected_alpha = alpha_for(1, scale=1.0)
+    assert result["alpha"] == pytest.approx(expected_alpha)
+    expected_terms = blend_terms(["old-term"], ["new-term"], expected_alpha, 6)
+    assert result["folder_note"].description_terms == expected_terms
+
+
+def test_apply_extracted_terms_gravity_well_warning(tmp_path):
+    vault = make_vault(tmp_path)
+    for i in range(12):
+        write_note(vault, f"decision/note-{i}.md")
+    write_folder_note(
+        vault,
+        FolderNote(rel_folder="decision", description_terms=["old-term"], note_count=10, source="auto"),
+    )
+
+    result = apply_extracted_terms(vault, "decision", ["new-term"], [])
+
+    assert result["gravity_well_warning"] is True, "12 notes vs. baseline 10 is a 20% jump at low alpha"
+    assert result["folder_note"].note_count == 12
+
+
+def test_apply_extracted_terms_no_warning_below_growth_threshold(tmp_path):
+    vault = make_vault(tmp_path)
+    for i in range(11):
+        write_note(vault, f"decision/note-{i}.md")
+    write_folder_note(
+        vault,
+        FolderNote(rel_folder="decision", description_terms=["old-term"], note_count=10, source="auto"),
+    )
+
+    result = apply_extracted_terms(vault, "decision", ["new-term"], [])
+
+    assert result["gravity_well_warning"] is False, "10% growth is below the 15% pathology threshold"
