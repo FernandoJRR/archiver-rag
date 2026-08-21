@@ -11,8 +11,6 @@ import os
 
 from archiver_rag.graph.linker import auto_link
 
-_new_notes_since_cluster = 0
-
 # How long to wait for a "deleted" file to reappear before believing the delete.
 DELETE_SETTLE_SECONDS = 1.0
 
@@ -98,20 +96,38 @@ def _get_describe_config() -> tuple[bool, int, int, float, float]:
         return False, 4, 6, 0.5, 1.0
 
 
+# Recovery fix (folder collapse incident): a batch move (e.g. `place --all --apply`,
+# or a manual `archiver-rag cluster --apply`) fires one on_moved per note, and every one
+# of them redescribes its destination folder — N notes landing in the same folder meant
+# N back-to-back corpus-rebuild+MMR passes on that folder, and _maybe_cluster's own
+# freshly-created-folder path was one such repeat-move source. Not what caused the
+# collapse (that was cluster_vault's community naming, removed above), but real waste
+# this guards against: at most one regeneration per folder per debounce window.
+_REDESCRIBE_DEBOUNCE_SECONDS = 5.0
+_last_redescribed: dict[str, float] = {}
+
+
 def _maybe_redescribe(rel_folder: str) -> None:
     """Regenerate rel_folder's _folder.md when its note membership changed.
 
     Structural changes only (note created/deleted/moved in or out) — never called from
     on_modified, since that fires per keystroke-batch save with no debouncing and this
-    does real work (corpus rebuild + MMR). No debounce needed here either: each call is
-    one extract_terms() + one conditional write, both local and cheap at vault scale, and
-    write_folder_note's resulting event is absorbed by _refresh_folder_centroid's own
-    fingerprint no-op — no re-entrancy into note-space (see module docstring for
-    write_folder_note's re-entrancy analysis).
+    does real work (corpus rebuild + MMR). Debounced per rel_folder (see
+    _REDESCRIBE_DEBOUNCE_SECONDS above) so a batch of moves into the same folder produces
+    at most one regeneration per window instead of one per note. write_folder_note's
+    resulting event is absorbed by _refresh_folder_centroid's own fingerprint no-op — no
+    re-entrancy into note-space (see module docstring for write_folder_note's
+    re-entrancy analysis).
     """
     auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale = _get_describe_config()
     if not auto_describe or rel_folder == ".":
         return
+
+    now = time.monotonic()
+    last = _last_redescribed.get(rel_folder)
+    if last is not None and now - last < _REDESCRIBE_DEBOUNCE_SECONDS:
+        return
+    _last_redescribed[rel_folder] = now
 
     vault = Path(get_vault_path())
     folder_dir = vault / rel_folder
@@ -180,20 +196,28 @@ class VaultHandler(FileSystemEventHandler):
 
         Stage B: placement is now by cosine similarity against declared folder descriptions
         (graph.placement.suggest_folder), not by wikilink-neighbour vote. The is_new_note
-        gate and the accumulator → cluster_vault fallback are unchanged.
+        gate is unchanged.
+
+        The label-propagation cluster_vault() fallback that used to fire automatically
+        here (after cluster_threshold notes in a row got no semantic suggestion) has been
+        removed. cluster_vault runs on the whole-vault wikilink graph and names each
+        community after its most internally-connected note — on this vault's dense
+        auto-linked graph it collapsed 61/73 notes into two note-stem-named folders
+        (archiver-rag-sync-command/, spec---wikilink-resolver-.../) across a handful of
+        automatic re-cluster passes. Semantic placement (suggest_folder) and cluster_vault
+        must not both run as automatic signals — cluster_vault remains available as an
+        explicit manual action via `archiver-rag cluster` (cli.py), which the user runs
+        deliberately and reviews before --apply.
 
         Returns the rel_folder the note was actually moved into, or None if no move
-        happened (auto_cluster off, no folder cleared threshold, or the cluster_vault
-        fallback ran instead — that path doesn't track individual note destinations).
-        Callers use this to know the note's final resting folder for redescribing it.
+        happened (auto_cluster off or no folder cleared threshold). Callers use this to
+        know the note's final resting folder for redescribing it.
         """
-        global _new_notes_since_cluster
         auto_cluster, cluster_threshold, sim_threshold, type_fallback = _get_cluster_config()
         if not auto_cluster:
             return None
 
         from archiver_rag.graph.placement import suggest_folder
-        from archiver_rag.graph.clustering import cluster_vault, apply_clusters
         from archiver_rag.vault.reorganize import move_notes
 
         vault = Path(get_vault_path())
@@ -250,14 +274,6 @@ class VaultHandler(FileSystemEventHandler):
                 return target
             return None
 
-        _new_notes_since_cluster += 1
-        if _new_notes_since_cluster >= cluster_threshold:
-            _new_notes_since_cluster = 0
-            _log("Auto-clustering vault...")
-            result = cluster_vault(min_cluster_size=2)
-            if result["clusters"]:
-                apply_clusters(result["clusters"])
-                _log(f"Clustered into {result['total_clusters']} groups")
         return None
 
     def on_created(self, event):

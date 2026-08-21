@@ -98,6 +98,7 @@ def test_described_folders_empty(tmp_path):
 
 def test_described_folders_found(tmp_path):
     vault = make_vault(tmp_path)
+    write_note(vault, "decision/one.md")
     note = FolderNote(rel_folder="decision", description_terms=["clustering"])
     write_folder_note(vault, note)
     result = described_folders(vault)
@@ -112,6 +113,16 @@ def test_described_folders_ignores_hidden(tmp_path):
     (hidden / FOLDER_NOTE_NAME).write_text(
         "---\ndescription_terms: [x]\nsource: auto\n---\n", encoding="utf-8"
     )
+    assert described_folders(vault) == {}
+
+
+def test_described_folders_excludes_emptied_folder(tmp_path):
+    """Recovery fix: a folder whose notes all left keeps a stale _folder.md on disk
+    but must not keep competing as a placement candidate (folder-collapse incident:
+    archiver-rag-sync-command/ stayed a live candidate at 0 notes indefinitely)."""
+    vault = make_vault(tmp_path)
+    note = FolderNote(rel_folder="ghost-folder", description_terms=["stale"], note_count=73)
+    write_folder_note(vault, note)  # _folder.md exists, but zero real notes on disk
     assert described_folders(vault) == {}
 
 

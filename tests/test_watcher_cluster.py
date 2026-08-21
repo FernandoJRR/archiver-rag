@@ -9,6 +9,13 @@ handler logged success anyway and every attempt re-triggered ingest + auto_link.
 Stage B: placement is now by cosine similarity (suggest_folder) not neighbour vote.
 Tests mock suggest_folder; the anti-churn guard now compares full vault-relative parent
 paths rather than just the immediate directory name.
+
+Recovery fix (folder collapse incident): the cluster_vault() label-propagation fallback
+that used to fire automatically after `cluster_threshold` no-suggestion notes in a row
+has been removed from _maybe_cluster entirely — it collapsed 61/73 real vault notes into
+two note-stem-named folders across a handful of automatic re-cluster passes.
+cluster_vault/apply_clusters are no longer imported by watcher.py at all; they remain
+reachable only via the explicit manual `archiver-rag cluster` CLI command.
 """
 
 from __future__ import annotations
@@ -26,7 +33,7 @@ from archiver_rag.watcher import VaultHandler
 
 @pytest.fixture
 def cluster_spy(monkeypatch):
-    calls = {"moves": [], "logged": [], "full_cluster": 0}
+    calls = {"moves": [], "logged": []}
 
     # Stage B: _get_cluster_config now returns 4-tuple: (auto_cluster, threshold, sim_threshold, type_fallback)
     monkeypatch.setattr("archiver_rag.watcher._get_cluster_config", lambda: (True, 5, 0.55, True))
@@ -39,13 +46,6 @@ def cluster_spy(monkeypatch):
         return {"moved": len(moves), "failed": 0, "succeeded": moves, "errors": []}
 
     monkeypatch.setattr("archiver_rag.vault.reorganize.move_notes", _move_notes)
-
-    def _cluster_vault(min_cluster_size=2):
-        calls["full_cluster"] += 1
-        return {"clusters": [], "total_clusters": 0}
-
-    monkeypatch.setattr("archiver_rag.graph.clustering.cluster_vault", _cluster_vault)
-    monkeypatch.setattr("archiver_rag.graph.clustering.apply_clusters", lambda c: [])
     return calls
 
 
@@ -143,20 +143,21 @@ def test_disabled_auto_cluster_does_nothing(tmp_vault, cluster_spy, monkeypatch)
     assert cluster_spy["moves"] == []
 
 
-def test_no_suggestion_counts_toward_threshold(tmp_vault, cluster_spy, monkeypatch):
-    """With no folder suggestion the note increments the counter; the full
-    re-cluster fires only once the threshold is reached."""
+def test_no_suggestion_never_triggers_cluster_vault_fallback(tmp_vault, cluster_spy, monkeypatch):
+    """Recovery fix: repeated no-suggestion notes must never fall back to
+    cluster_vault()/apply_clusters() — that automatic path caused the folder
+    collapse and has been removed. cluster_vault must not even be imported by
+    watcher.py; patching it here would silently pass if it were reintroduced,
+    so assert directly on the module instead."""
     import archiver_rag.watcher as w
 
-    monkeypatch.setattr(w, "_new_notes_since_cluster", 0)
+    assert not hasattr(w, "cluster_vault"), "cluster_vault must not be imported into watcher.py"
+    assert not hasattr(w, "apply_clusters"), "apply_clusters must not be imported into watcher.py"
+
     _suggest(monkeypatch, None)
     note = tmp_vault.write("lonely.md", "# Lonely")
 
-    for _ in range(4):
-        VaultHandler()._maybe_cluster(str(note))
-    assert cluster_spy["full_cluster"] == 0, (
-        "re-clustered before reaching the threshold"
-    )
-
-    VaultHandler()._maybe_cluster(str(note))
-    assert cluster_spy["full_cluster"] == 1
+    for _ in range(10):
+        result = VaultHandler()._maybe_cluster(str(note))
+        assert result is None
+    assert cluster_spy["moves"] == [], "no-suggestion notes must never trigger a move"

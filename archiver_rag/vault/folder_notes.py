@@ -171,7 +171,21 @@ def apply_extracted_terms(
 
 
 def described_folders(vault: Path) -> dict[str, FolderNote]:
-    """All folders that have a readable _folder.md, keyed by vault-relative path."""
+    """Folders with a readable _folder.md AND at least one real note on disk right now,
+    keyed by vault-relative path.
+
+    A folder that emptied out (all its notes moved or deleted elsewhere) keeps its stale
+    _folder.md on disk — nothing deletes that sidecar automatically — so without this
+    check it would keep competing as a placement candidate forever. This is the fix for
+    the folder-collapse incident: emptied note-stem-named folders (e.g.
+    archiver-rag-sync-command/, left behind at 0 notes after cluster_vault redistributed
+    its members elsewhere) stayed in folder_centroids() as live candidates indefinitely.
+    Counts real files on disk, not the frontmatter `note_count` field — that field goes
+    stale exactly when a folder empties out, which is the case this guards against.
+    described_folders() has exactly one production caller (graph/centroids.py::
+    folder_centroids()), so this filter reaches every placement/clustering candidate list
+    without needing a second fix at the call site.
+    """
     result: dict[str, FolderNote] = {}
     for fn in vault.rglob(FOLDER_NOTE_NAME):
         if any(p.startswith(".") for p in fn.parts):
@@ -179,6 +193,12 @@ def described_folders(vault: Path) -> dict[str, FolderNote]:
         try:
             rel_folder = str(fn.parent.relative_to(vault))
         except ValueError:
+            continue
+        folder_dir = fn.parent
+        has_notes = any(
+            f.is_file() and is_indexable_note(f) for f in folder_dir.iterdir()
+        )
+        if not has_notes:
             continue
         note = read_folder_note(vault, rel_folder)
         if note is not None:

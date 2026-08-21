@@ -39,6 +39,16 @@ def _redirect_cache(monkeypatch, tmp_path: Path) -> Path:
 
 
 def _make_sidecar(vault: Path, rel_folder: str, terms: list[str]) -> FolderNote:
+    # described_folders() (and therefore folder_centroids()) now requires at least one
+    # real note on disk, not just a _folder.md — a folder that emptied out must stop
+    # competing as a placement candidate (recovery fix, folder-collapse incident). Write
+    # a placeholder real note alongside the sidecar so these cache-behavior tests keep
+    # exercising folder_centroids() the way they did before that invariant existed.
+    folder_dir = vault / rel_folder
+    folder_dir.mkdir(parents=True, exist_ok=True)
+    placeholder = folder_dir / "placeholder.md"
+    if not placeholder.exists():
+        placeholder.write_text("# Placeholder\nContent.", encoding="utf-8")
     note = FolderNote(rel_folder=rel_folder, description_terms=terms, source="auto")
     write_folder_note(vault, note)
     return note

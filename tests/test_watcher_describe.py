@@ -55,6 +55,11 @@ def test_describe_config_reads_explicit_true(tmp_path, monkeypatch):
 
 @pytest.fixture
 def describe_spy(monkeypatch):
+    # _maybe_redescribe debounces per rel_folder using module-level state that would
+    # otherwise leak between tests (several tests here reuse "decision" as rel_folder
+    # within the same debounce window) — reset it so each test starts undebounced.
+    monkeypatch.setattr("archiver_rag.watcher._last_redescribed", {})
+
     calls = {"logged": [], "extracted": [], "applied": []}
     monkeypatch.setattr("archiver_rag.watcher._log", lambda m: calls["logged"].append(m))
 
@@ -122,6 +127,52 @@ def test_manual_folder_is_not_logged_or_overwritten(tmp_vault, describe_spy, mon
     assert describe_spy["logged"] == [], "manual folders must not be touched or logged"
     note = read_folder_note(Path(tmp_vault.root), "reference")
     assert note.description_terms == ["api"]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Recovery fix: debounce — a batch of moves into the same folder must not
+# re-extract/re-write once per note
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_redescribe_is_debounced_within_window(tmp_vault, describe_spy, monkeypatch):
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    tmp_vault.write("decision/one.md", "# One")
+
+    _maybe_redescribe("decision")
+    _maybe_redescribe("decision")
+    _maybe_redescribe("decision")
+
+    assert describe_spy["extracted"] == ["decision"], (
+        "three calls within the debounce window must extract/write only once"
+    )
+
+
+def test_redescribe_fires_again_after_window_elapses(tmp_vault, describe_spy, monkeypatch):
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    tmp_vault.write("decision/one.md", "# One")
+
+    _maybe_redescribe("decision")
+    assert describe_spy["extracted"] == ["decision"]
+
+    import archiver_rag.watcher as w
+
+    # Simulate the debounce window having elapsed without a real sleep.
+    w._last_redescribed["decision"] -= (w._REDESCRIBE_DEBOUNCE_SECONDS + 1)
+    _maybe_redescribe("decision")
+    assert describe_spy["extracted"] == ["decision", "decision"]
+
+
+def test_redescribe_debounce_is_independent_per_folder(tmp_vault, describe_spy, monkeypatch):
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    tmp_vault.write("decision/one.md", "# One")
+    tmp_vault.write("reference/one.md", "# One")
+
+    _maybe_redescribe("decision")
+    _maybe_redescribe("reference")
+
+    assert describe_spy["extracted"] == ["decision", "reference"], (
+        "debouncing one folder must not suppress a different folder"
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
