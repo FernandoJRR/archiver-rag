@@ -21,9 +21,9 @@ from archiver_rag.watcher import VaultHandler, _get_describe_config, _maybe_rede
 
 def test_describe_config_defaults_off_when_home_has_no_config(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
-    auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale = _get_describe_config()
+    auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale, tag_terms = _get_describe_config()
     assert auto_describe is False
-    assert (min_notes, max_terms, mmr_lambda, alpha_scale) == (4, 6, 0.5, 1.0)
+    assert (min_notes, max_terms, mmr_lambda, alpha_scale, tag_terms) == (4, 6, 0.5, 1.0, True)
 
 
 def test_describe_config_defaults_off_on_malformed_json(tmp_path, monkeypatch):
@@ -44,7 +44,7 @@ def test_describe_config_reads_explicit_true(tmp_path, monkeypatch):
     (install / "config.json").write_text(
         json.dumps({"auto_describe": True, "advanced": {"max_terms": 8}}), encoding="utf-8"
     )
-    auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale = _get_describe_config()
+    auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale, tag_terms = _get_describe_config()
     assert auto_describe is True
     assert max_terms == 8
 
@@ -72,7 +72,7 @@ def describe_spy(monkeypatch):
 
 
 def test_disabled_by_default_does_nothing(tmp_vault, describe_spy, monkeypatch):
-    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (False, 4, 6, 0.5, 1.0))
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (False, 4, 6, 0.5, 1.0, True))
     tmp_vault.write("decision/one.md", "# One")
     _maybe_redescribe("decision")
     assert describe_spy["extracted"] == []
@@ -80,26 +80,26 @@ def test_disabled_by_default_does_nothing(tmp_vault, describe_spy, monkeypatch):
 
 
 def test_root_folder_is_never_described(tmp_vault, describe_spy, monkeypatch):
-    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     _maybe_redescribe(".")
     assert describe_spy["extracted"] == []
 
 
 def test_empty_folder_is_skipped(tmp_vault, describe_spy, monkeypatch):
-    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     (Path(tmp_vault.root) / "decision").mkdir()
     _maybe_redescribe("decision")
     assert describe_spy["extracted"] == []
 
 
 def test_nonexistent_folder_is_skipped(tmp_vault, describe_spy, monkeypatch):
-    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     _maybe_redescribe("never-created")
     assert describe_spy["extracted"] == []
 
 
 def test_enabled_folder_with_notes_is_described_and_written(tmp_vault, describe_spy, monkeypatch):
-    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     tmp_vault.write("decision/one.md", "# One")
 
     _maybe_redescribe("decision")
@@ -115,7 +115,7 @@ def test_enabled_folder_with_notes_is_described_and_written(tmp_vault, describe_
 
 
 def test_manual_folder_is_not_logged_or_overwritten(tmp_vault, describe_spy, monkeypatch):
-    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     tmp_vault.write("reference/one.md", "# One")
 
     from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
@@ -135,7 +135,7 @@ def test_manual_folder_is_not_logged_or_overwritten(tmp_vault, describe_spy, mon
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_redescribe_is_debounced_within_window(tmp_vault, describe_spy, monkeypatch):
-    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     tmp_vault.write("decision/one.md", "# One")
 
     _maybe_redescribe("decision")
@@ -148,7 +148,7 @@ def test_redescribe_is_debounced_within_window(tmp_vault, describe_spy, monkeypa
 
 
 def test_redescribe_fires_again_after_window_elapses(tmp_vault, describe_spy, monkeypatch):
-    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     tmp_vault.write("decision/one.md", "# One")
 
     _maybe_redescribe("decision")
@@ -163,7 +163,7 @@ def test_redescribe_fires_again_after_window_elapses(tmp_vault, describe_spy, mo
 
 
 def test_redescribe_debounce_is_independent_per_folder(tmp_vault, describe_spy, monkeypatch):
-    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0))
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     tmp_vault.write("decision/one.md", "# One")
     tmp_vault.write("reference/one.md", "# One")
 
@@ -190,7 +190,7 @@ def cluster_spy(monkeypatch):
 
 
 def _suggest(monkeypatch, folder, reason="semantic", similarity=0.72):
-    def _fake_suggest_folder(vault, note_path, *, threshold=0.55, type_fallback=True):
+    def _fake_suggest_folder(vault, note_path, *, threshold=0.55, type_fallback=True, w_identity=0.6, w_content=0.4, name_prefix_bonus=0.15):
         return {
             "suggested_folder": folder,
             "similarity": similarity if folder else 0.0,

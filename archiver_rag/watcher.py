@@ -71,8 +71,34 @@ def _get_cluster_config() -> tuple[bool, int, float, bool]:
         return False, 5, 0.55, True
 
 
-def _get_describe_config() -> tuple[bool, int, int, float, float]:
-    """Return (auto_describe, term_extraction_min_notes, max_terms, mmr_lambda, alpha_scale).
+def _get_placement_weights_config() -> tuple[float, float, float]:
+    """Return (w_identity, w_content, name_prefix_bonus) for suggest_folder.
+
+    Separate reader rather than extending _get_cluster_config's tuple — several
+    tests monkeypatch _get_cluster_config with a fixed-arity lambda, and changing
+    its return shape would silently break every one of them. Same safe-default
+    contract as the other config readers here: any read error resolves to the
+    documented defaults (0.6/0.4/0.15), never a crash.
+    """
+    try:
+        import json
+
+        config_path = Path.home() / ".archiver-rag" / "config.json"
+        config = json.loads(config_path.read_text())
+        advanced = config.get("advanced", {})
+        weights = advanced.get("placement_weights", {})
+        return (
+            float(weights.get("identity", 0.6)),
+            float(weights.get("content", 0.4)),
+            float(advanced.get("name_prefix_bonus", 0.15)),
+        )
+    except Exception:
+        return 0.6, 0.4, 0.15
+
+
+def _get_describe_config() -> tuple[bool, int, int, float, float, bool]:
+    """Return (auto_describe, term_extraction_min_notes, max_terms, mmr_lambda, alpha_scale,
+    tag_terms_in_description).
 
     Same safety contract as _get_cluster_config: must NOT go through load_config(),
     whose {} error-return would make config.get("auto_describe", True) default to True.
@@ -91,9 +117,10 @@ def _get_describe_config() -> tuple[bool, int, int, float, float]:
             int(advanced.get("max_terms", 6)),
             float(advanced.get("mmr_lambda", 0.5)),
             float(advanced.get("alpha_curve", {}).get("scale", 1.0)),
+            bool(advanced.get("tag_terms_in_description", True)),
         )
     except Exception:
-        return False, 4, 6, 0.5, 1.0
+        return False, 4, 6, 0.5, 1.0, True
 
 
 # Recovery fix (folder collapse incident): a batch move (e.g. `place --all --apply`,
@@ -119,7 +146,9 @@ def _maybe_redescribe(rel_folder: str) -> None:
     re-entrancy into note-space (see module docstring for write_folder_note's
     re-entrancy analysis).
     """
-    auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale = _get_describe_config()
+    auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale, tag_terms_in_description = (
+        _get_describe_config()
+    )
     if not auto_describe or rel_folder == ".":
         return
 
@@ -144,6 +173,7 @@ def _maybe_redescribe(rel_folder: str) -> None:
         term_extraction_min_notes=min_notes,
         max_terms=max_terms,
         mmr_lambda=mmr_lambda,
+        tag_terms_in_description=tag_terms_in_description,
     )
     result = apply_extracted_terms(
         vault, rel_folder, desc, dist,
@@ -220,6 +250,7 @@ class VaultHandler(FileSystemEventHandler):
         from archiver_rag.graph.placement import suggest_folder
         from archiver_rag.vault.reorganize import move_notes
 
+        w_identity, w_content, name_prefix_bonus = _get_placement_weights_config()
         vault = Path(get_vault_path())
         note_path = Path(path)
         suggestion = suggest_folder(
@@ -227,6 +258,9 @@ class VaultHandler(FileSystemEventHandler):
             note_path,
             threshold=sim_threshold,
             type_fallback=type_fallback,
+            w_identity=w_identity,
+            w_content=w_content,
+            name_prefix_bonus=name_prefix_bonus,
         )
         target = suggestion.get("suggested_folder")
         if target:

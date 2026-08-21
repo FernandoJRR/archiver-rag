@@ -358,6 +358,9 @@ def place(
     cfg = load_config()
     threshold = float(cfg.get("placement_similarity_threshold", 0.55))
     type_fb = bool(cfg.get("type_fallback", True))
+    w_identity = float(cfg.get("advanced", {}).get("placement_weights", {}).get("identity", 0.6))
+    w_content = float(cfg.get("advanced", {}).get("placement_weights", {}).get("content", 0.4))
+    name_prefix_bonus = float(cfg.get("advanced", {}).get("name_prefix_bonus", 0.15))
 
     if all_notes:
         # ── §9.7 vault-wide dry-run / batch move ────────────────────────────
@@ -370,7 +373,7 @@ def place(
 
         rows = []
         for np_ in sorted(all_note_paths):
-            suggestion = suggest_folder(vault, np_, threshold=threshold, type_fallback=type_fb)
+            suggestion = suggest_folder(vault, np_, threshold=threshold, type_fallback=type_fb, w_identity=w_identity, w_content=w_content, name_prefix_bonus=name_prefix_bonus)
             try:
                 current = str(np_.parent.relative_to(vault))
             except ValueError:
@@ -446,7 +449,7 @@ def place(
         raise typer.Exit(1)
     note_path = found[0]
 
-    result = suggest_folder(vault, note_path, threshold=threshold, type_fallback=type_fb)
+    result = suggest_folder(vault, note_path, threshold=threshold, type_fallback=type_fb, w_identity=w_identity, w_content=w_content, name_prefix_bonus=name_prefix_bonus)
     if result["suggested_folder"]:
         sim_str = f"{result['similarity']:.2f}" if result["similarity"] else "—"
         print(f"\n[green]Suggested:[/green] {result['suggested_folder']}/  ({result['reason']}, {sim_str})")
@@ -504,6 +507,7 @@ def describe_cmd(
     term_extraction_min_notes = cfg.get("advanced", {}).get("term_extraction_min_notes", 4)
     max_terms = cfg.get("advanced", {}).get("max_terms", 6)
     mmr_lambda = cfg.get("advanced", {}).get("mmr_lambda", 0.5)
+    tag_terms_in_description = cfg.get("advanced", {}).get("tag_terms_in_description", True)
 
     # --set requires --folder
     if set_terms is not None and folder is None:
@@ -546,6 +550,7 @@ def describe_cmd(
         term_extraction_min_notes=term_extraction_min_notes,
         max_terms=max_terms,
         mmr_lambda=mmr_lambda,
+        tag_terms_in_description=tag_terms_in_description,
     )
 
     alpha_scale = cfg.get("advanced", {}).get("alpha_curve", {}).get("scale", 1.0)

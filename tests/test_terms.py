@@ -6,6 +6,7 @@ from archiver_rag.graph.terms import (
     _tokenize,
     _strip_related_section,
     _terms_by_tags_corpus,
+    _terms_by_ctfidf_corpus,
     extract_terms,
 )
 from archiver_rag.utils import FOLDER_NOTE_NAME
@@ -165,3 +166,74 @@ def test_extract_terms_empty_folder_returns_empty(tmp_path):
     desc, dist = extract_terms(vault, "empty-folder")
     assert desc == []
     assert dist == []
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# _terms_by_ctfidf_corpus — tag symmetry (Fase A, spec fortalecer-dominios)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.slow
+def test_ctfidf_normalizes_tags_case_and_spacing():
+    """Same tag written inconsistently across notes must not fragment into
+    separate terms — 'Weekly-Cuisine', 'weekly cuisine', 'weekly-cuisine' are one."""
+    corpora = {
+        "a": (["Weekly-Cuisine", "weekly cuisine", "weekly-cuisine"], ["foo"] * 100),
+        "b": (["bakery"], ["bar"] * 100),
+    }
+    desc, _ = _terms_by_ctfidf_corpus("a", corpora, max_terms=6, mmr_lambda=0.5)
+    assert "weekly-cuisine" in desc
+    assert sum(1 for t in desc if "cuisine" in t) == 1, (
+        "the three spellings must collapse into a single term, not three"
+    )
+
+
+@pytest.mark.slow
+def test_ctfidf_tag_not_diluted_by_body_volume():
+    """A tag on every note in the folder must rank in the description even when
+    the folder's body has enough moderately-frequent technical terms to outscore
+    it in a merged pool. Uses 30 competing terms (> the top-25 pre-MMR cutoff) so
+    the tag is excluded before MMR's diversity step even sees it in the 'off'
+    case — deterministic, not dependent on MMR's diversity behavior rescuing it."""
+    competing_terms = [f"competing-term-{i}" for i in range(30)]
+    body_a = []
+    for t in competing_terms:
+        body_a.extend([t] * 30)
+
+    body_b = [f"other-{i}" for i in range(400)]
+
+    corpora = {
+        "a": (["weekly-cuisine"] * 5, body_a),
+        "b": (["bakery"] * 5, body_b),
+    }
+
+    desc_on, _ = _terms_by_ctfidf_corpus(
+        "a", corpora, max_terms=6, mmr_lambda=0.5, tag_terms_in_description=True
+    )
+    desc_off, _ = _terms_by_ctfidf_corpus(
+        "a", corpora, max_terms=6, mmr_lambda=0.5, tag_terms_in_description=False
+    )
+
+    assert "weekly-cuisine" in desc_on, (
+        "separate tf pools must let a folder-wide tag win regardless of body volume"
+    )
+    assert "weekly-cuisine" not in desc_off, (
+        "sanity check: the old merged-pool behavior really did dilute this tag out "
+        "of the top-25 pre-MMR candidates — if this fails, the synthetic corpus "
+        "needs more/stronger competing terms to reproduce the dilution"
+    )
+
+
+@pytest.mark.slow
+def test_ctfidf_tag_terms_in_description_false_matches_legacy_merge():
+    """tag_terms_in_description=False must reproduce the old single-pool,
+    unnormalized behavior exactly (case-distinct tags counted separately)."""
+    corpora = {
+        "a": (["Weekly-Cuisine", "weekly-cuisine"], ["foo"] * 10),
+        "b": (["bakery"], ["bar"] * 10),
+    }
+    desc, _ = _terms_by_ctfidf_corpus(
+        "a", corpora, max_terms=6, mmr_lambda=0.5, tag_terms_in_description=False
+    )
+    # Raw, unnormalized tags: "Weekly-Cuisine" and "weekly-cuisine" are distinct
+    # candidates pre-MMR (each with half the combined count of the normalized case).
+    assert "Weekly-Cuisine" in desc or "weekly-cuisine" in desc

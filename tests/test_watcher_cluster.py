@@ -51,7 +51,7 @@ def cluster_spy(monkeypatch):
 
 def _suggest(monkeypatch, folder, reason="semantic", similarity=0.72):
     """Patch suggest_folder to return a canned result."""
-    def _fake_suggest_folder(vault, note_path, *, threshold=0.55, type_fallback=True):
+    def _fake_suggest_folder(vault, note_path, *, threshold=0.55, type_fallback=True, w_identity=0.6, w_content=0.4, name_prefix_bonus=0.15):
         return {
             "suggested_folder": folder,
             "similarity": similarity if folder else 0.0,

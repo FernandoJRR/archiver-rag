@@ -182,6 +182,7 @@ def extract_terms(
     term_extraction_min_notes: int = 4,
     max_terms: int = 6,
     mmr_lambda: float = 0.5,
+    tag_terms_in_description: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Compute (description_terms, distinctive) for one folder.
 
@@ -201,7 +202,9 @@ def extract_terms(
     if n_notes < term_extraction_min_notes:
         return _terms_by_tags(vault, rel_folder, max_terms, mmr_lambda)
 
-    return _terms_by_ctfidf(vault, rel_folder, max_terms, mmr_lambda)
+    return _terms_by_ctfidf(
+        vault, rel_folder, max_terms, mmr_lambda, tag_terms_in_description
+    )
 
 
 def extract_terms_all(
@@ -210,6 +213,7 @@ def extract_terms_all(
     term_extraction_min_notes: int = 4,
     max_terms: int = 6,
     mmr_lambda: float = 0.5,
+    tag_terms_in_description: bool = True,
 ) -> dict[str, tuple[list[str], list[str]]]:
     """Extract terms for every describable folder in one pass.
 
@@ -233,7 +237,7 @@ def extract_terms_all(
             )
         else:
             desc, dist = _terms_by_ctfidf_corpus(
-                rel_folder, corpora, max_terms, mmr_lambda
+                rel_folder, corpora, max_terms, mmr_lambda, tag_terms_in_description
             )
         result[rel_folder] = (desc, dist)
     return result
@@ -271,11 +275,17 @@ def _terms_by_tags_corpus(
 
 
 def _terms_by_ctfidf(
-    vault: Path, rel_folder: str, max_terms: int, mmr_lambda: float
+    vault: Path,
+    rel_folder: str,
+    max_terms: int,
+    mmr_lambda: float,
+    tag_terms_in_description: bool = True,
 ) -> tuple[list[str], list[str]]:
     folders = describable_folders(vault)
     corpora = {f: _folder_corpus(vault, f) for f in folders}
-    return _terms_by_ctfidf_corpus(rel_folder, corpora, max_terms, mmr_lambda)
+    return _terms_by_ctfidf_corpus(
+        rel_folder, corpora, max_terms, mmr_lambda, tag_terms_in_description
+    )
 
 
 def _terms_by_ctfidf_corpus(
@@ -283,48 +293,80 @@ def _terms_by_ctfidf_corpus(
     corpora: dict[str, tuple[list[str], list[str]]],
     max_terms: int,
     mmr_lambda: float,
+    tag_terms_in_description: bool = True,
 ) -> tuple[list[str], list[str]]:
     """BERTopic-style c-TF-IDF: w = tf_{t,c} · log(1 + A / f_t).
 
     tf_{t,c}  — term frequency within the target folder's concatenated body.
     A          — mean token count across all folders.
     f_t        — total occurrences across all folders (document frequency by count).
-    """
-    target_tags, target_tokens = corpora.get(rel_folder, ([], []))
-    all_tokens = target_tags + target_tokens  # merge: tags treated as terms for c-TF-IDF
 
-    if not all_tokens:
+    tag_terms_in_description=True (default): tags are normalized the same way
+    _terms_by_tags_corpus does (accent-strip, lowercase, hyphen-join, stopword/length
+    filter) and scored in their own tf pool, separate from body tokens. A folder-wide
+    tag has real signal even when the folder's body is thousands of tokens — merging
+    unnormalized tags straight into the body pool (the old behavior) diluted a tag's
+    tf toward zero by sheer body volume, and fragmented the same tag written
+    differently across notes ("Weekly-Cuisine" vs "weekly-cuisine") into separate
+    terms. False reverts to that old single-pool, unnormalized behavior.
+    """
+
+    def _norm_tags(tags: list[str]) -> list[str]:
+        return [
+            t
+            for raw in tags
+            if (t := _normalize(raw).replace(" ", "-").strip())
+            and t not in _STOPWORDS
+            and len(t) >= 3
+        ]
+
+    def _prep(tags: list[str], tokens: list[str]) -> tuple[list[str], list[str]]:
+        return (_norm_tags(tags) if tag_terms_in_description else tags, tokens)
+
+    target_tags, target_tokens = _prep(*corpora.get(rel_folder, ([], [])))
+    if not target_tags and not target_tokens:
         return [], []
 
-    # Cross-folder token totals
+    # Cross-folder totals — tags normalized the same way (when enabled) so document
+    # frequency recognizes differently-cased/spaced tags as the same term.
     global_counts: Counter[str] = Counter()
     folder_sizes: list[int] = []
-    for tags, tokens in corpora.values():
+    for raw_tags, raw_tokens in corpora.values():
+        tags, tokens = _prep(raw_tags, raw_tokens)
         combined = tags + tokens
         global_counts.update(combined)
         folder_sizes.append(len(combined))
 
     avg_size = sum(folder_sizes) / max(len(folder_sizes), 1)
 
-    target_counts = Counter(all_tokens)
-    total_target = sum(target_counts.values())
+    def _idf(term: str) -> float:
+        return math.log(1 + avg_size / max(global_counts[term], 1))
 
     scores: dict[str, float] = {}
-    for term, count in target_counts.items():
-        tf = count / total_target
-        idf = math.log(1 + avg_size / max(global_counts[term], 1))
-        scores[term] = tf * idf
+    if tag_terms_in_description:
+        for pool in (target_tags, target_tokens):
+            if not pool:
+                continue
+            counts = Counter(pool)
+            total = sum(counts.values())
+            for term, count in counts.items():
+                score = (count / total) * _idf(term)
+                # A term scoring in both pools (rare, but possible) keeps its
+                # higher score instead of being overwritten by the weaker one.
+                scores[term] = max(scores.get(term, 0.0), score)
+    else:
+        combined = target_tags + target_tokens
+        counts = Counter(combined)
+        total = sum(counts.values())
+        for term, count in counts.items():
+            scores[term] = (count / total) * _idf(term)
 
     # Top candidates for MMR
     top = sorted(scores, key=lambda t: scores[t], reverse=True)[:25]
     description_terms = _mmr(top, scores, max_terms, mmr_lambda)
 
     # Distinctive: highest raw IDF (rarest across folders), not MMR-diversified
-    idf_scores = {
-        t: math.log(1 + avg_size / max(global_counts[t], 1))
-        for t in scores
-    }
-    distinctive_candidates = sorted(idf_scores, key=lambda t: idf_scores[t], reverse=True)
+    distinctive_candidates = sorted(scores, key=_idf, reverse=True)
     distinctive = [t for t in distinctive_candidates if t not in description_terms][:3]
 
     return description_terms, distinctive
