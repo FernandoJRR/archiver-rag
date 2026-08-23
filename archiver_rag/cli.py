@@ -5,6 +5,13 @@ from rich import print
 app = typer.Typer(name="archiver-rag", help="Semantic RAG for Obsidian vaults + MCP")
 
 
+@app.callback()
+def _main():
+    from archiver_rag import paths
+
+    paths.ensure_migrated()
+
+
 @app.command()
 def init():
     """Interactive setup wizard — run this first"""
@@ -189,13 +196,14 @@ def uninstall():
         claude_json.write_text(json.dumps(config, indent=2))
         print("[yellow]🔌 MCP entry removed from Claude Code[/yellow]")
 
-    # 3. Remove data directory
+    # 3. Remove config/data/cache directories (and any pre-XDG leftovers)
     import shutil
+    from archiver_rag import paths
 
-    data_dir = Path.home() / ".archiver-rag"
-    if data_dir.exists():
-        shutil.rmtree(data_dir)
-        print("[yellow]🗑  Data directory removed[/yellow]")
+    for d in (paths.config_dir(), paths.data_dir(), paths.cache_dir(), paths.legacy_dir()):
+        if d.exists():
+            shutil.rmtree(d)
+            print(f"[yellow]🗑  Removed {d}[/yellow]")
 
     print("\n[green]Uninstall complete.[/green]")
     print("Run [bold]pip uninstall archiver-rag[/bold] to remove the package itself.")
@@ -610,7 +618,8 @@ def config_cmd(
 ):
     """Update archiver-rag configuration"""
     import json
-    from archiver_rag.init_cmd import load_config, CONFIG_PATH
+    from archiver_rag import paths
+    from archiver_rag.init_cmd import load_config
 
     cfg = load_config()
     if auto_cluster is not None:
@@ -623,7 +632,7 @@ def config_cmd(
         cfg["type_fallback"] = type_fallback
     if auto_describe is not None:
         cfg["auto_describe"] = auto_describe
-    CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
+    paths.config_path().write_text(json.dumps(cfg, indent=2))
     print("[green]✅ Config updated[/green]")
 
 

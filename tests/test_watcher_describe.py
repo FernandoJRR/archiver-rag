@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from archiver_rag import paths
 from archiver_rag.watcher import VaultHandler, _get_describe_config, _maybe_redescribe
 
 
@@ -19,29 +20,26 @@ from archiver_rag.watcher import VaultHandler, _get_describe_config, _maybe_rede
 # _get_describe_config — safe-default config reader
 # ──────────────────────────────────────────────────────────────────────────────
 
-def test_describe_config_defaults_off_when_home_has_no_config(tmp_path, monkeypatch):
-    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+def test_describe_config_defaults_off_when_home_has_no_config():
     auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale, tag_terms = _get_describe_config()
     assert auto_describe is False
     assert (min_notes, max_terms, mmr_lambda, alpha_scale, tag_terms) == (4, 6, 0.5, 1.0, True)
 
 
-def test_describe_config_defaults_off_on_malformed_json(tmp_path, monkeypatch):
-    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
-    install = tmp_path / ".archiver-rag"
-    install.mkdir()
-    (install / "config.json").write_text("not json at all }{", encoding="utf-8")
+def test_describe_config_defaults_off_on_malformed_json():
+    config_dir = paths.config_dir()
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.json").write_text("not json at all }{", encoding="utf-8")
     auto_describe, *_ = _get_describe_config()
     assert auto_describe is False
 
 
-def test_describe_config_reads_explicit_true(tmp_path, monkeypatch):
+def test_describe_config_reads_explicit_true():
     import json
 
-    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
-    install = tmp_path / ".archiver-rag"
-    install.mkdir()
-    (install / "config.json").write_text(
+    config_dir = paths.config_dir()
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.json").write_text(
         json.dumps({"auto_describe": True, "advanced": {"max_terms": 8}}), encoding="utf-8"
     )
     auto_describe, min_notes, max_terms, mmr_lambda, alpha_scale, tag_terms = _get_describe_config()

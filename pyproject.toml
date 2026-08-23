@@ -16,6 +16,7 @@ dependencies = [
     "typer",
     "rich",
     "pyyaml",
+    "platformdirs",
 ]
 
 [dependency-groups]

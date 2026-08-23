@@ -12,19 +12,21 @@ FOLDER_NOTE_NAME = "_folder.md"
 
 
 def get_vault_path() -> str:
-    config_path = Path.home() / ".archiver-rag" / "config.json"
-    return json.loads(config_path.read_text())["vault_path"]
+    from archiver_rag import paths
+
+    return json.loads(paths.config_path().read_text())["vault_path"]
 
 
 def load_config() -> dict:
-    """Runtime config from ~/.archiver-rag/config.json, or {} if missing/unreadable.
+    """Runtime config from the XDG config path, or {} if missing/unreadable.
 
     Every default lives in code and the file is optional, so callers must read through
     config.get(key, default) rather than assuming a key is present.
     """
     try:
-        config_path = Path.home() / ".archiver-rag" / "config.json"
-        return json.loads(config_path.read_text())
+        from archiver_rag import paths
+
+        return json.loads(paths.config_path().read_text())
     except Exception:
         return {}
 

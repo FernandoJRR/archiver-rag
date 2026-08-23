@@ -7,6 +7,15 @@ get_vault_path", so we patch every module's binding, not just utils.
 
 tmp_vault (opt-in): repoints those same bindings at tmp_path/vault and returns a helper
 that creates notes by relative path.
+
+_no_real_home_paths (autouse): blocks accidental hits to the real ~/.config/archiver-rag,
+~/.local/share/archiver-rag, ~/.cache/archiver-rag, and ~/.archiver-rag by redirecting
+archiver_rag.paths' getters to tmp_path and forcing the migration check to a no-op. Every
+consumer calls through archiver_rag.paths (module-qualified), so patching that module once
+is enough — no per-module rebinding needed the way get_vault_path requires.
+
+tmp_install (opt-in): resets the migration guard and exposes the same tmp_path locations
+for tests that specifically exercise archiver_rag.paths.ensure_migrated().
 """
 
 from __future__ import annotations
@@ -46,6 +55,45 @@ def _no_real_vault(monkeypatch):
                 monkeypatch.setattr(mod, "get_vault_path", _raise)
         except ImportError:
             pass
+
+
+@pytest.fixture(autouse=True)
+def _no_real_home_paths(tmp_path, monkeypatch):
+    import archiver_rag.paths as _paths
+
+    fake_config = tmp_path / "config-dir"
+    fake_data = tmp_path / "data-dir"
+    fake_cache = tmp_path / "cache-dir"
+    fake_legacy = tmp_path / "legacy-dir-does-not-exist"
+
+    monkeypatch.setattr(_paths, "config_dir", lambda: fake_config)
+    monkeypatch.setattr(_paths, "data_dir", lambda: fake_data)
+    monkeypatch.setattr(_paths, "cache_dir", lambda: fake_cache)
+    monkeypatch.setattr(_paths, "legacy_dir", lambda: fake_legacy)
+    monkeypatch.setattr(_paths, "_migration_checked", True)
+
+
+@pytest.fixture
+def tmp_install(tmp_path, monkeypatch):
+    import archiver_rag.paths as _paths
+
+    fake_config = tmp_path / "config-dir"
+    fake_data = tmp_path / "data-dir"
+    fake_cache = tmp_path / "cache-dir"
+    fake_legacy = tmp_path / "legacy-dir"
+
+    monkeypatch.setattr(_paths, "config_dir", lambda: fake_config)
+    monkeypatch.setattr(_paths, "data_dir", lambda: fake_data)
+    monkeypatch.setattr(_paths, "cache_dir", lambda: fake_cache)
+    monkeypatch.setattr(_paths, "legacy_dir", lambda: fake_legacy)
+    monkeypatch.setattr(_paths, "_migration_checked", False)
+
+    return {
+        "config_dir": fake_config,
+        "data_dir": fake_data,
+        "cache_dir": fake_cache,
+        "legacy_dir": fake_legacy,
+    }
 
 
 class _VaultBuilder:

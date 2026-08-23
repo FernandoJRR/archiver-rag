@@ -1,16 +1,15 @@
 import json
 import chromadb
-from pathlib import Path
-
-CONFIG_PATH = Path.home() / ".archiver-rag" / "config.json"
+from archiver_rag import paths
 
 
 def _get_chroma_path() -> str:
-    if not CONFIG_PATH.exists():
+    config_path = paths.config_path()
+    if not config_path.exists():
         raise FileNotFoundError(
             "archiver-rag is not configured. Run 'archiver-rag init' first."
         )
-    return json.loads(CONFIG_PATH.read_text())["chroma_path"]
+    return json.loads(config_path.read_text())["chroma_path"]
 
 
 class _LazyCollection:

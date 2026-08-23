@@ -4,16 +4,16 @@ import subprocess
 from rich import print
 from pathlib import Path
 from rich.prompt import Prompt, Confirm
+from archiver_rag import paths
 from archiver_rag.core.embedder import _is_cached
-
-CONFIG_PATH = Path.home() / ".archiver-rag" / "config.json"
 
 
 def load_config() -> dict:
-    if not CONFIG_PATH.exists():
+    config_path = paths.config_path()
+    if not config_path.exists():
         print("[red]Not initialized. Run `archiver-rag init` first.[/red]")
         raise typer.Exit(1)
-    return json.loads(CONFIG_PATH.read_text())
+    return json.loads(config_path.read_text())
 
 
 def run_init():
@@ -25,21 +25,22 @@ def run_init():
         print("[red]Path does not exist[/red]")
         raise typer.Exit(1)
 
-    install_path = Path.home() / ".archiver-rag"
-    install_path.mkdir(parents=True, exist_ok=True)
-    chroma_path = install_path / "chroma_db"
+    paths.config_dir().mkdir(parents=True, exist_ok=True)
+    paths.data_dir().mkdir(parents=True, exist_ok=True)
+    paths.cache_dir().mkdir(parents=True, exist_ok=True)
+    chroma_path = paths.default_chroma_path()
 
     auto_start = Confirm.ask("Start automatically on login?", default=True)
 
     # 2. Save config
     config = {
         "vault_path": str(vault_path),
-        "install_path": str(install_path),
+        "install_path": str(paths.data_dir()),
         "chroma_path": str(chroma_path),
         "auto_cluster": True,
         "cluster_threshold": 5,
     }
-    CONFIG_PATH.write_text(json.dumps(config, indent=2))
+    paths.config_path().write_text(json.dumps(config, indent=2))
     print("[green]✅ Config saved[/green]")
 
     # 3. Check for embedding model

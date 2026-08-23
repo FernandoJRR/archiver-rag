@@ -58,9 +58,9 @@ def _get_cluster_config() -> tuple[bool, int, float, bool]:
     """
     try:
         import json
+        from archiver_rag import paths
 
-        config_path = Path.home() / ".archiver-rag" / "config.json"
-        config = json.loads(config_path.read_text())
+        config = json.loads(paths.config_path().read_text())
         return (
             config.get("auto_cluster", True),
             int(config.get("cluster_threshold", 5)),
@@ -82,9 +82,9 @@ def _get_placement_weights_config() -> tuple[float, float, float]:
     """
     try:
         import json
+        from archiver_rag import paths
 
-        config_path = Path.home() / ".archiver-rag" / "config.json"
-        config = json.loads(config_path.read_text())
+        config = json.loads(paths.config_path().read_text())
         advanced = config.get("advanced", {})
         weights = advanced.get("placement_weights", {})
         return (
@@ -107,9 +107,9 @@ def _get_describe_config() -> tuple[bool, int, int, float, float, bool]:
     """
     try:
         import json
+        from archiver_rag import paths
 
-        config_path = Path.home() / ".archiver-rag" / "config.json"
-        config = json.loads(config_path.read_text())
+        config = json.loads(paths.config_path().read_text())
         advanced = config.get("advanced", {})
         return (
             bool(config.get("auto_describe", False)),
@@ -204,8 +204,8 @@ def _refresh_folder_centroid(path: str) -> None:
 
     Does NOT call ingest_file or auto_link — those would put _folder.md chunks in
     ChromaDB, which prune_orphans cannot clean up because the file exists on disk.
-    The only write is to ~/.archiver-rag/centroids.json, outside the vault, generating
-    no watchdog event and no re-entrancy risk.
+    The only write is to the XDG data dir's centroids.json (see paths.py), outside the
+    vault, generating no watchdog event and no re-entrancy risk.
     """
     vault_path = get_vault_path()
     rel_folder = _folder_note_rel_folder(vault_path, path)

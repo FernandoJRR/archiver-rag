@@ -28,7 +28,9 @@ from archiver_rag.vault.folder_notes import (
 
 def _cache_path() -> Path:
     """Single indirection so tests redirect the cache away from the real install."""
-    return Path.home() / ".archiver-rag" / "centroids.json"
+    from archiver_rag import paths
+
+    return paths.centroids_path()
 
 
 def description_text(note: FolderNote) -> str:
