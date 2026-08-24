@@ -7,6 +7,7 @@ conftest._MODULES_WITH_VAULT and is safe in tests without the tmp_vault fixture.
 
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -27,6 +28,9 @@ class FolderNote:
     # §4.1 meters — computed but weighted 0.0 until activated by config
     term_dispersion: float = 0.0
     embedding_compactness: float = 0.0
+    # Consecutive empty structural-change checks (Gate 1 vaciado). Resets to 0 whenever
+    # apply_extracted_terms writes a fresh FolderNote (i.e. the folder has notes again).
+    empty_sweeps: int = 0
 
 
 def _folder_note_path(vault: Path, rel_folder: str) -> Path:
@@ -53,6 +57,7 @@ def read_folder_note(vault: Path, rel_folder: str) -> FolderNote | None:
             source=str(fm.get("source") or "auto"),
             term_dispersion=float(fm.get("term_dispersion") or 0.0),
             embedding_compactness=float(fm.get("embedding_compactness") or 0.0),
+            empty_sweeps=int(fm.get("empty_sweeps") or 0),
         )
     except Exception:
         return None
@@ -75,6 +80,7 @@ def write_folder_note(vault: Path, note: FolderNote) -> Path:
         f"source: {note.source}",
         f"term_dispersion: {round(note.term_dispersion, 4)}",
         f"embedding_compactness: {round(note.embedding_compactness, 4)}",
+        f"empty_sweeps: {note.empty_sweeps}",
         "---",
     ]
 
@@ -226,3 +232,23 @@ def describable_folders(vault: Path) -> list[str]:
         if direct_notes:
             folders.append(str(d.relative_to(vault)))
     return sorted(folders)
+
+
+def archive_folder_note(vault: Path, rel_folder: str) -> Path | None:
+    """Move rel_folder's _folder.md to .archive/rel_folder/_folder.md. None if absent.
+
+    Gate 1 vaciado: called once a `source: auto` folder's empty_sweeps hits the configured
+    grace period. Moves rather than deletes so a folder that comes back into use later
+    doesn't lose its prior description outright. Never touches the physical folder itself
+    — only the sidecar. `.archive/` needs no exclusion code anywhere else: every enumeration
+    site already skips dot-prefixed path components (same mechanism that hides .trash/).
+    """
+    src = _folder_note_path(vault, rel_folder)
+    if not src.exists():
+        return None
+    dest = vault / ".archive" / rel_folder / FOLDER_NOTE_NAME
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists():
+        dest.unlink()  # folder was reused and emptied again — don't accumulate stale copies
+    shutil.move(str(src), str(dest))
+    return dest

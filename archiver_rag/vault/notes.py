@@ -79,6 +79,22 @@ def log_note(
 
     filepath.write_text("\n".join(body_parts), encoding="utf-8")
 
+    # Gate 1 — folder birth: give an undescribed folder a real description from this
+    # note rather than leaving it orphaned until auto_describe (if even on) catches up.
+    # Only fires when currently undescribed, not on every log_note into an existing
+    # folder — an already-described large folder would otherwise pay the heavier
+    # c-TF-IDF+MMR cost on every single call. Never let this break note creation.
+    try:
+        from archiver_rag.vault.folder_notes import apply_extracted_terms, read_folder_note
+
+        if read_folder_note(vault, type) is None:
+            from archiver_rag.graph.terms import extract_terms
+
+            desc, dist = extract_terms(vault, type)
+            apply_extracted_terms(vault, type, desc, dist)
+    except Exception:
+        pass
+
     return {
         "created": str(filepath.relative_to(vault)),
         "type": type,

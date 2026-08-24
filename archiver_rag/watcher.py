@@ -123,6 +123,22 @@ def _get_describe_config() -> tuple[bool, int, int, float, float, bool]:
         return False, 4, 6, 0.5, 1.0, True
 
 
+def _get_folder_vacancy_grace_periods() -> int:
+    """Gate 1 vaciado — consecutive empty structural-change checks before a
+    `source: auto` _folder.md is archived. Same safe-default contract as the other
+    readers here: any read error resolves to the documented default (3), never a crash.
+    Not gated separately — piggybacks on _maybe_redescribe's own auto_describe check.
+    """
+    try:
+        import json
+        from archiver_rag import paths
+
+        config = json.loads(paths.config_path().read_text())
+        return int(config.get("advanced", {}).get("folder_vacancy_grace_periods", 3))
+    except Exception:
+        return 3
+
+
 # Recovery fix (folder collapse incident): a batch move (e.g. `place --all --apply`,
 # or a manual `archiver-rag cluster --apply`) fires one on_moved per note, and every one
 # of them redescribes its destination folder — N notes landing in the same folder meant
@@ -163,6 +179,7 @@ def _maybe_redescribe(rel_folder: str) -> None:
     if not folder_dir.is_dir():
         return
     if not any(f.is_file() and is_indexable_note(f) for f in folder_dir.iterdir()):
+        _maybe_archive_if_empty(vault, rel_folder)
         return
 
     from archiver_rag.graph.terms import extract_terms
@@ -188,6 +205,37 @@ def _maybe_redescribe(rel_folder: str) -> None:
             f"  ⚠️ gravity-well forming: {rel_folder} "
             f"(count → {note.note_count}, α={result['alpha']:.2f})"
         )
+
+
+def _maybe_archive_if_empty(vault: Path, rel_folder: str) -> None:
+    """Gate 1 vaciado — called by _maybe_redescribe when rel_folder has 0 notes.
+
+    source: manual folders are never touched (per spec: a declared description stays a
+    valid magnet even empty — not even counted). source: auto folders accumulate
+    empty_sweeps across structural-change checks (same debounce as the caller, so this
+    is roughly one increment per _REDESCRIBE_DEBOUNCE_SECONDS window) and are archived
+    to .archive/ once the configured grace period is reached.
+    """
+    from archiver_rag.vault.folder_notes import (
+        archive_folder_note,
+        read_folder_note,
+        write_folder_note,
+    )
+
+    note = read_folder_note(vault, rel_folder)
+    if note is None or note.source == "manual":
+        return
+
+    note.empty_sweeps += 1
+    grace_periods = _get_folder_vacancy_grace_periods()
+    if note.empty_sweeps >= grace_periods:
+        archive_folder_note(vault, rel_folder)
+        from archiver_rag.graph.centroids import drop_centroid
+
+        drop_centroid(rel_folder)
+        _log(f"Archived {rel_folder}/_folder.md → .archive/ (empty {note.empty_sweeps} checks in a row)")
+    else:
+        write_folder_note(vault, note)
 
 
 def _folder_note_rel_folder(vault_path: str, folder_note_path: str) -> str | None:
@@ -280,25 +328,31 @@ class VaultHandler(FileSystemEventHandler):
             except ValueError:
                 return None
 
-            # If the destination folder does not exist yet, write its _folder.md first
-            # (§6 "Carpetas nuevas") so it is not born orphaned. move_notes handles mkdir.
-            dest_dir = vault / target
-            if not dest_dir.exists():
-                from archiver_rag.vault.folder_notes import FolderNote, write_folder_note
-                from datetime import date
-                new_sidecar = FolderNote(
-                    rel_folder=target,
-                    description_terms=[],
-                    note_count=0,
-                    updated=date.today().isoformat(),
-                    source="auto",
-                )
-                write_folder_note(vault, new_sidecar)
+            from archiver_rag.vault.folder_notes import (
+                apply_extracted_terms,
+                read_folder_note,
+            )
+
+            # §6 "Carpetas nuevas" — a destination folder move_notes is about to create
+            # (or one that already exists but was never described) must not stay orphaned.
+            was_undescribed = read_folder_note(vault, target) is None
 
             result = move_notes(
                 [{"source": src, "destination": f"{target}/{note_path.name}"}]
             )
             if result.get("moved"):
+                if was_undescribed:
+                    # Give it a real description from the note that just landed there
+                    # (Gate 1 folder birth) instead of an empty placeholder that would
+                    # otherwise sit out of placement candidacy until auto_describe (if
+                    # even on) eventually catches up.
+                    try:
+                        from archiver_rag.graph.terms import extract_terms
+
+                        desc, dist = extract_terms(vault, target)
+                        apply_extracted_terms(vault, target, desc, dist)
+                    except Exception:
+                        pass
                 reason = suggestion.get("reason", "")
                 sim = suggestion.get("similarity", 0.0)
                 _log(

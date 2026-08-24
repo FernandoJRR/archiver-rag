@@ -143,6 +143,45 @@ def test_disabled_auto_cluster_does_nothing(tmp_vault, cluster_spy, monkeypatch)
     assert cluster_spy["moves"] == []
 
 
+# ── Gate 1: newly created destination folders get a real description ────────
+
+
+def test_new_destination_folder_gets_real_description_not_empty_placeholder(
+    tmp_vault, monkeypatch
+):
+    """A note auto-placed into a brand-new folder used to leave it with
+    description_terms=[] (an empty placeholder), which folder_centroids() then skips
+    entirely until auto_describe (if even on) eventually filled it in. Gate 1: extract
+    real tag-based terms from the note that just landed there instead."""
+    monkeypatch.setattr("archiver_rag.watcher._get_cluster_config", lambda: (True, 5, 0.55, True))
+    monkeypatch.setattr("archiver_rag.watcher._log", lambda m: None)
+    _suggest(monkeypatch, "new-topic", reason="semantic", similarity=0.7)
+
+    note = tmp_vault.write(
+        "loose.md", "---\ntags: [watcher, clustering]\n---\n# Loose\nBody."
+    )
+
+    def _move_notes(moves):
+        # Simulate the real move so post-move term extraction has a file to read —
+        # unlike cluster_spy's generic fake, which never touches disk.
+        for m in moves:
+            src = Path(tmp_vault.root) / m["source"]
+            dest = Path(tmp_vault.root) / m["destination"]
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            src.rename(dest)
+        return {"moved": len(moves), "failed": 0, "succeeded": moves, "errors": []}
+
+    monkeypatch.setattr("archiver_rag.vault.reorganize.move_notes", _move_notes)
+
+    VaultHandler()._maybe_cluster(str(note))
+
+    from archiver_rag.vault.folder_notes import read_folder_note
+
+    sidecar = read_folder_note(Path(tmp_vault.root), "new-topic")
+    assert sidecar is not None
+    assert sidecar.description_terms, "must be a real description, not an empty placeholder"
+
+
 def test_no_suggestion_never_triggers_cluster_vault_fallback(tmp_vault, cluster_spy, monkeypatch):
     """Recovery fix: repeated no-suggestion notes must never fall back to
     cluster_vault()/apply_clusters() — that automatic path caused the folder

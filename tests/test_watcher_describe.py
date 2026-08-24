@@ -13,7 +13,12 @@ from pathlib import Path
 import pytest
 
 from archiver_rag import paths
-from archiver_rag.watcher import VaultHandler, _get_describe_config, _maybe_redescribe
+from archiver_rag.watcher import (
+    VaultHandler,
+    _get_describe_config,
+    _get_folder_vacancy_grace_periods,
+    _maybe_redescribe,
+)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -125,6 +130,99 @@ def test_manual_folder_is_not_logged_or_overwritten(tmp_vault, describe_spy, mon
     assert describe_spy["logged"] == [], "manual folders must not be touched or logged"
     note = read_folder_note(Path(tmp_vault.root), "reference")
     assert note.description_terms == ["api"]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Gate 1 vaciado — empty `source: auto` folders accumulate empty_sweeps and get
+# archived once the grace period is reached; `source: manual` is never touched.
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_empty_auto_folder_increments_empty_sweeps(tmp_vault, describe_spy, monkeypatch):
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
+    from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
+
+    (Path(tmp_vault.root) / "ghost-folder").mkdir()
+    write_folder_note(Path(tmp_vault.root), FolderNote(rel_folder="ghost-folder", description_terms=["stale"], source="auto"))
+
+    _maybe_redescribe("ghost-folder")
+
+    note = read_folder_note(Path(tmp_vault.root), "ghost-folder")
+    assert note is not None, "below the grace period — still present, not archived"
+    assert note.empty_sweeps == 1
+    assert describe_spy["extracted"] == [], "empty folder must not go through term extraction"
+
+
+def test_empty_manual_folder_is_never_touched(tmp_vault, describe_spy, monkeypatch):
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
+    from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
+
+    (Path(tmp_vault.root) / "reference").mkdir()
+    write_folder_note(Path(tmp_vault.root), FolderNote(rel_folder="reference", description_terms=["api"], source="manual"))
+
+    _maybe_redescribe("reference")
+
+    note = read_folder_note(Path(tmp_vault.root), "reference")
+    assert note.empty_sweeps == 0, "manual folders are never counted, let alone archived"
+    assert describe_spy["logged"] == []
+    assert not (Path(tmp_vault.root) / ".archive").exists()
+
+
+def test_reaching_grace_period_archives_the_folder(tmp_vault, describe_spy, monkeypatch):
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
+    monkeypatch.setattr("archiver_rag.watcher._get_folder_vacancy_grace_periods", lambda: 3)
+    from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
+    from archiver_rag.utils import FOLDER_NOTE_NAME
+
+    (Path(tmp_vault.root) / "ghost-folder").mkdir()
+    write_folder_note(
+        Path(tmp_vault.root),
+        FolderNote(rel_folder="ghost-folder", description_terms=["stale"], source="auto", empty_sweeps=2),
+    )
+
+    _maybe_redescribe("ghost-folder")
+
+    assert read_folder_note(Path(tmp_vault.root), "ghost-folder") is None, "sidecar left the folder"
+    archived = Path(tmp_vault.root) / ".archive" / "ghost-folder" / FOLDER_NOTE_NAME
+    assert archived.exists()
+    assert any("Archived" in m for m in describe_spy["logged"])
+
+
+def test_folder_regaining_a_note_resets_empty_sweeps(tmp_vault, describe_spy, monkeypatch):
+    monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
+    from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
+
+    tmp_vault.write("decision/one.md", "# One")
+    write_folder_note(
+        Path(tmp_vault.root),
+        FolderNote(rel_folder="decision", description_terms=["old"], note_count=0, empty_sweeps=2, source="auto"),
+    )
+
+    _maybe_redescribe("decision")
+
+    note = read_folder_note(Path(tmp_vault.root), "decision")
+    assert note.empty_sweeps == 0
+
+
+def test_get_folder_vacancy_grace_periods_defaults_to_3_on_missing_config():
+    assert _get_folder_vacancy_grace_periods() == 3
+
+
+def test_get_folder_vacancy_grace_periods_defaults_to_3_on_malformed_config():
+    config_dir = paths.config_dir()
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.json").write_text("not json }{", encoding="utf-8")
+    assert _get_folder_vacancy_grace_periods() == 3
+
+
+def test_get_folder_vacancy_grace_periods_reads_custom_value():
+    import json
+
+    config_dir = paths.config_dir()
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.json").write_text(
+        json.dumps({"advanced": {"folder_vacancy_grace_periods": 5}}), encoding="utf-8"
+    )
+    assert _get_folder_vacancy_grace_periods() == 5
 
 
 # ──────────────────────────────────────────────────────────────────────────────

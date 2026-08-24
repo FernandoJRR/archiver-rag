@@ -9,6 +9,7 @@ from archiver_rag.vault.folder_notes import (
     described_folders,
     describable_folders,
     apply_extracted_terms,
+    archive_folder_note,
 )
 from archiver_rag.utils import FOLDER_NOTE_NAME
 
@@ -257,3 +258,77 @@ def test_apply_extracted_terms_no_warning_below_growth_threshold(tmp_path):
     result = apply_extracted_terms(vault, "decision", ["new-term"], [])
 
     assert result["gravity_well_warning"] is False, "10% growth is below the 15% pathology threshold"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# empty_sweeps — Gate 1 vaciado state, round-tripped like every other field
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_empty_sweeps_defaults_to_zero(tmp_path):
+    vault = make_vault(tmp_path)
+    write_folder_note(vault, FolderNote(rel_folder="decision", description_terms=["x"]))
+    back = read_folder_note(vault, "decision")
+    assert back.empty_sweeps == 0
+
+
+def test_empty_sweeps_roundtrips(tmp_path):
+    vault = make_vault(tmp_path)
+    write_folder_note(
+        vault, FolderNote(rel_folder="decision", description_terms=["x"], empty_sweeps=2)
+    )
+    back = read_folder_note(vault, "decision")
+    assert back.empty_sweeps == 2
+
+
+def test_apply_extracted_terms_resets_empty_sweeps(tmp_path):
+    """A folder regaining a note and getting regenerated must not carry a stale counter."""
+    vault = make_vault(tmp_path)
+    write_note(vault, "decision/one.md")
+    write_folder_note(
+        vault,
+        FolderNote(rel_folder="decision", description_terms=["old"], note_count=0, empty_sweeps=2, source="auto"),
+    )
+
+    result = apply_extracted_terms(vault, "decision", ["new-term"], [])
+
+    assert result["folder_note"].empty_sweeps == 0
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# archive_folder_note — Gate 1 vaciado action
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_archive_folder_note_moves_sidecar(tmp_path):
+    vault = make_vault(tmp_path)
+    write_folder_note(vault, FolderNote(rel_folder="ghost-folder", description_terms=["stale"]))
+
+    dest = archive_folder_note(vault, "ghost-folder")
+
+    assert dest == vault / ".archive" / "ghost-folder" / FOLDER_NOTE_NAME
+    assert dest.exists()
+    assert not (vault / "ghost-folder" / FOLDER_NOTE_NAME).exists()
+
+
+def test_archive_folder_note_noop_when_absent(tmp_path):
+    vault = make_vault(tmp_path)
+    assert archive_folder_note(vault, "nonexistent") is None
+    assert not (vault / ".archive").exists()
+
+
+def test_archive_folder_note_overwrites_stale_prior_archive(tmp_path):
+    vault = make_vault(tmp_path)
+    archive_dir = vault / ".archive" / "ghost-folder"
+    archive_dir.mkdir(parents=True)
+    (archive_dir / FOLDER_NOTE_NAME).write_text("old archived copy", encoding="utf-8")
+
+    write_folder_note(vault, FolderNote(rel_folder="ghost-folder", description_terms=["fresh"]))
+    dest = archive_folder_note(vault, "ghost-folder")
+
+    assert "fresh" in dest.read_text(encoding="utf-8")
+
+
+def test_archived_folder_is_invisible_to_described_folders(tmp_path):
+    vault = make_vault(tmp_path)
+    write_folder_note(vault, FolderNote(rel_folder="ghost-folder", description_terms=["stale"]))
+    archive_folder_note(vault, "ghost-folder")
+    assert described_folders(vault) == {}
