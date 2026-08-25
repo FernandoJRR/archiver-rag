@@ -32,6 +32,23 @@ DEFAULT_PORT = 8077
 DEFAULT_PATH = "/mcp"
 
 
+def configured_endpoint() -> tuple[str, str, int, str]:
+    """`(url, host, port, path)` from config with the module defaults.
+
+    The same resolution `serve` performs at startup, extracted so the CLI's
+    start-http flow and `status` describe the daemon by construction instead of
+    re-deriving (and drifting from) what it actually listens on. A corrupt
+    config degrades to loopback defaults via utils.load_config's `{}` contract.
+    """
+    from archiver_rag.utils import load_config
+
+    cfg = load_config()
+    host = cfg.get("http_host", DEFAULT_HOST)
+    port = int(cfg.get("http_port", DEFAULT_PORT))
+    path = cfg.get("http_path", DEFAULT_PATH)
+    return f"http://{host}:{port}{path}", host, port, path
+
+
 def _security_settings(allowed_hosts: list[str] | None) -> TransportSecuritySettings | None:
     """DNS-rebinding protection, but only once the operator has said what to allow.
 

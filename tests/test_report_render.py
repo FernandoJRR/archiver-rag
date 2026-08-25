@@ -23,6 +23,16 @@ def _status(**overrides) -> dict:
             "pid": 17249, "last_exit_status": 0, "service_file": "/x.plist",
             "stdout_log": "/tmp/archiver-rag.log", "stderr_log": "/tmp/e.log",
         },
+        "http": {
+            "state": {
+                "platform": "darwin", "label": "com.archiver-rag.http",
+                "installed": False, "loaded": False, "running": False, "pid": None,
+                "last_exit_status": None, "service_file": "/x.http.plist",
+                "stdout_log": "/tmp/archiver-rag-http.log",
+                "stderr_log": "/tmp/e.http.log",
+            },
+            "url": "http://127.0.0.1:8077/mcp",
+        },
         "runtime": {
             "pid": 17249, "started_at": "2026-08-24T09:00:00",
             "vault_path": "/v", "last_event": "2026-08-24T09:30:00",
@@ -137,6 +147,63 @@ def test_unreachable_index_renders_the_error(capsys):
 
 def test_status_report_is_json_serializable():
     json.loads(json.dumps(_status(), default=str))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MCP HTTP block
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_http_running_renders_pid_url_and_stop_command(capsys):
+    http = _status()["http"] | {
+        "state": _status()["http"]["state"]
+        | {"installed": True, "loaded": True, "running": True, "pid": 9001}
+    }
+    report.render_status(_status(http=http))
+    out = capsys.readouterr().out
+
+    assert "MCP HTTP" in out
+    assert "Running" in out and "9001" in out
+    assert "http://127.0.0.1:8077/mcp" in out
+    assert "archiver-rag stop http" in out
+
+
+def test_http_crash_loop_is_not_reported_as_running(capsys):
+    http = _status()["http"] | {
+        "state": _status()["http"]["state"]
+        | {"installed": True, "loaded": True, "running": False, "pid": None,
+           "last_exit_status": 1}
+    }
+    report.render_status(_status(http=http))
+    out = capsys.readouterr().out
+
+    assert "Loaded but not running" in out and "last exit 1" in out
+
+
+def test_http_not_installed_points_at_start_http(capsys):
+    report.render_status(_status())  # base http state: not installed
+    out = capsys.readouterr().out
+
+    assert "not installed" in out
+    assert "archiver-rag start http" in out
+
+
+def test_http_stopped_but_installed_says_not_running(capsys):
+    http = _status()["http"] | {
+        "state": _status()["http"]["state"] | {"installed": True}
+    }
+    report.render_status(_status(http=http))
+    out = capsys.readouterr().out
+
+    assert "Not running" in out and "archiver-rag start http" in out
+
+
+def test_http_section_tolerated_absent_for_old_shaped_reports(capsys):
+    """render takes the dict as its only argument — partial reports must still render."""
+    without = {k: v for k, v in _status().items() if k != "http"}
+    report.render_status(without)
+
+    assert "Service" in capsys.readouterr().out
 
 
 # ── health ────────────────────────────────────────────────────────────────────

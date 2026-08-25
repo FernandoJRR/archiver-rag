@@ -73,7 +73,7 @@ def _sample(items: list, limit: int = 5) -> str:
 def compose_status() -> dict:
     from archiver_rag import runtime
     from archiver_rag.core.index_stats import index_stats
-    from archiver_rag.service import service_state
+    from archiver_rag.service import http_state, service_state
     from archiver_rag.utils import load_config
 
     # utils.load_config (returns {}) — deliberately not init_cmd.load_config, which
@@ -83,6 +83,7 @@ def compose_status() -> dict:
 
     report: dict = {
         "service": service_state(),
+        "http": _http_section(),
         "runtime": runtime.read_state(),
         "config": {
             "configured": bool(vault_path),
@@ -126,6 +127,24 @@ def _config_paths() -> dict:
         "data_dir": str(paths.data_dir()),
         "cache_dir": str(paths.cache_dir()),
     }
+
+
+def _http_section() -> dict:
+    """Detached MCP HTTP server: supervisor state plus the URL it would serve.
+
+    service.daemon_endpoint() resolves config *and* any flags baked into the
+    installed service file, so this names what the daemon actually listens on —
+    including after an overridden `start http --port N`. The whole section fails
+    soft like the rest of the report.
+    """
+    from archiver_rag.service import daemon_endpoint, http_state
+
+    section: dict = {"state": http_state(), "url": None}
+    try:
+        section["url"] = daemon_endpoint()[0]
+    except Exception as e:
+        section["error"] = f"{type(e).__name__}: {e}"
+    return section
 
 
 def _placement_state(vault: Path) -> dict:
@@ -200,6 +219,32 @@ def render_status(report: dict) -> None:
         print(f"  [dim]{svc['error']}[/dim]")
     if svc.get("stdout_log"):
         print(f"  [dim]logs: {svc['stdout_log']}[/dim]")
+
+    # Tolerate dicts without the key — render takes the composed dict as its only
+    # argument and tests exercise partial reports.
+    http_rep = report.get("http") or {}
+    hst = http_rep.get("state") or {}
+    print("\n[bold]MCP HTTP[/bold]")
+    if hst.get("running"):
+        print(f"  [green]✅ Running[/green] — PID {hst.get('pid')} · {http_rep.get('url') or '—'}")
+        print(f"  [dim]stop: archiver-rag stop http[/dim]")
+    elif hst.get("loaded"):
+        exit_status = hst.get("last_exit_status")
+        print(
+            f"  [yellow]⚠️ Loaded but not running[/yellow] "
+            f"(last exit {exit_status if exit_status is not None else '—'})"
+        )
+        print("  [dim]KeepAlive may be restart-looping — check the error log[/dim]")
+    elif not hst.get("installed"):
+        print(f"  [dim]not installed[/dim] — [bold]archiver-rag start http[/bold] to detach")
+    else:
+        print(f"  [red]❌ Not running[/red] — run [bold]archiver-rag start http[/bold]")
+    if hst.get("error"):
+        print(f"  [dim]{hst['error']}[/dim]")
+    if http_rep.get("error"):
+        print(f"  [dim]{http_rep['error']}[/dim]")
+    if hst.get("stdout_log"):
+        print(f"  [dim]logs: {hst['stdout_log']}[/dim]")
 
     print("\n[bold]Activity[/bold]")
     if not rt:

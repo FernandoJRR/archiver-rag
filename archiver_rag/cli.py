@@ -21,28 +21,136 @@ def init():
 
 
 @app.command()
-def start():
-    """Start the vault watcher service"""
-    from archiver_rag.service import start as svc_start
+def start(
+    target: str = typer.Argument("watcher", help="watcher or http"),
+    login: bool = typer.Option(
+        None, "--login/--no-login",
+        help="HTTP only: start automatically at login (asks when omitted)",
+    ),
+    stateful: bool = typer.Option(
+        False, "--stateful", help="HTTP only: sessions + SSE instead of stateless JSON"
+    ),
+    allowed_host: list[str] = typer.Option(
+        [], "--allowed-host",
+        help="HTTP only: DNS-rebinding allowlist entry (repeatable)",
+    ),
+    host: str = typer.Option(
+        None, "--host", help="HTTP only: bind address override (baked into the service)"
+    ),
+    port: int = typer.Option(
+        None, "--port", help="HTTP only: port override (baked into the service)"
+    ),
+    path: str = typer.Option(
+        None, "--path", help="HTTP only: route override (baked into the service)"
+    ),
+):
+    """Start the vault watcher, or the detached MCP HTTP server"""
+    from archiver_rag import service
 
-    svc_start()
+    defn = _resolve_target(target)
+    if defn is service.WATCHER:
+        service.start(service.WATCHER)
+        return
+    _start_http(
+        login=login, stateful=stateful, allowed_hosts=list(allowed_host),
+        host=host, port=port, path=path,
+    )
+
+
+def _resolve_target(target: str):
+    from archiver_rag import service
+
+    if target == "watcher":
+        return service.WATCHER
+    if target == "http":
+        return service.HTTP
+    print(f"[red]Unknown service: {target}[/red] — use 'watcher' or 'http'")
+    raise typer.Exit(1)
+
+
+def _start_http(
+    *, login, stateful: bool, allowed_hosts: list[str],
+    host=None, port=None, path=None,
+) -> None:
+    from archiver_rag import service
+
+    st = service.http_state()
+    # daemon_endpoint() honors flags baked into the installed service file, so an
+    # already-running overridden daemon is described by its real address.
+    url, cfg_host, cfg_port, cfg_path = service.daemon_endpoint()
+    # Explicit overrides win over everything — they are baked into the service file,
+    # so the daemon's actual bind address is what gets printed here.
+    host = host or cfg_host
+    port = port or cfg_port
+    path = path or cfg_path
+    url = f"http://{host}:{port}{path}"
+
+    if st.get("running"):
+        print(f"[green]✅ MCP HTTP server already running[/green] — {url}")
+        print(f"  [dim]PID {st['pid']} · restart with [bold]archiver-rag restart http[/bold][/dim]")
+        return
+
+    # A busy port means someone else owns it (a foreground serve, most likely).
+    # Loading anyway would KeepAlive-crash-loop on the bind failure.
+    if service.port_in_use(host, port):
+        print(f"[red]❌ {host}:{port} is already in use by another process.[/red]")
+        print("  [dim]Stop that process first (foreground serve?), or pick another --port[/dim]")
+        raise typer.Exit(1)
+
+    if login is None:
+        login = typer.confirm("Start automatically at login?", default=False)
+
+    args = ["serve", "--transport", "http"]
+    if host != cfg_host:
+        args += ["--host", host]
+    if port != cfg_port:
+        args += ["--port", str(port)]
+    if path != cfg_path:
+        args += ["--path", path]
+    if stateful:
+        args.append("--stateful")
+    for h in allowed_hosts:
+        args += ["--allowed-host", h]
+
+    service.write_service(service.HTTP, args, run_at_load=login)
+    service.start(service.HTTP)
+
+    print(f"[green]MCP over HTTP:[/green] {url}")
+    if not _is_loopback(host):
+        print(
+            f"\n[yellow]⚠️  Binding to {host} with NO authentication.[/yellow]\n"
+            "    Every tool is exposed: the full vault is readable, and\n"
+            "    log_note / move_notes / cluster_vault can modify it.\n"
+            "    Put a TLS-terminating reverse proxy, VPN, or SSH tunnel in front.\n"
+        )
+    print("[dim]Add the URL to your agents' MCP registry yourself "
+          "(e.g. claude mcp add --scope user --transport http archiver-rag "
+          f"{url})[/dim]")
 
 
 @app.command()
-def stop():
-    """Stop the vault watcher service"""
-    from archiver_rag.service import stop as svc_stop
+def stop(
+    target: str = typer.Argument("watcher", help="watcher or http"),
+):
+    """Stop the vault watcher, or the detached MCP HTTP server"""
+    from archiver_rag import service
 
-    svc_stop()
+    service.stop(_resolve_target(target))
 
 
 @app.command()
-def restart():
-    """Restart the vault watcher service"""
-    from archiver_rag.service import stop as svc_stop, start as svc_start
+def restart(
+    target: str = typer.Argument("watcher", help="watcher or http"),
+):
+    """Restart the vault watcher, or the detached MCP HTTP server"""
+    from archiver_rag import service
 
-    svc_stop()
-    svc_start()
+    defn = _resolve_target(target)
+    if not service.state(defn).get("installed"):
+        print(f"[red]❌ {target} is not installed[/red] — run [bold]archiver-rag start {target}[/bold]")
+        raise typer.Exit(1)
+    service.stop(defn)
+    service.start(defn)
 
 
 @app.command()
@@ -186,23 +294,24 @@ def uninstall():
         print("Aborted.")
         raise typer.Exit()
 
-    # 1. Stop and remove service
-    if sys.platform == "darwin":
-        plist = Path.home() / "Library/LaunchAgents/com.archiver-rag.plist"
-        if plist.exists():
-            subprocess.run(["launchctl", "unload", str(plist)], capture_output=True)
-            plist.unlink()
-            print("[yellow]Service removed[/yellow]")
+    # 1. Stop and remove both services (watcher + detached HTTP server)
+    from archiver_rag import service
 
-    elif sys.platform.startswith("linux"):
-        subprocess.run(
-            ["systemctl", "--user", "disable", "--now", "archiver-rag"],
-            capture_output=True,
-        )
-        service = Path.home() / ".config/systemd/user/archiver-rag.service"
-        if service.exists():
-            service.unlink()
-        print("[yellow]Service removed[/yellow]")
+    for defn in (service.WATCHER, service.HTTP):
+        if sys.platform == "darwin":
+            if defn.plist_path.exists():
+                subprocess.run(["launchctl", "unload", str(defn.plist_path)], capture_output=True)
+                defn.plist_path.unlink()
+                print(f"[yellow]Service removed: {defn.label}[/yellow]")
+
+        elif sys.platform.startswith("linux"):
+            subprocess.run(
+                ["systemctl", "--user", "disable", "--now", defn.unit_name],
+                capture_output=True,
+            )
+            if defn.unit_path.exists():
+                defn.unit_path.unlink()
+                print(f"[yellow]Service removed: {defn.label}[/yellow]")
 
     # 2. Remove MCP from ~/.claude.json
     claude_json = Path.home() / ".claude.json"
@@ -848,14 +957,14 @@ def serve(
         raise typer.Exit(1)
 
     from archiver_rag.mcp import http as mcp_http
-    from archiver_rag.utils import load_config
 
-    # load_config() returns {} on any error, so a corrupt config degrades to the safe
-    # loopback defaults rather than binding somewhere unexpected.
-    cfg = load_config()
-    host = host or cfg.get("http_host", mcp_http.DEFAULT_HOST)
-    port = port or int(cfg.get("http_port", mcp_http.DEFAULT_PORT))
-    path = path or cfg.get("http_path", mcp_http.DEFAULT_PATH)
+    # configured_endpoint() shares serve's exact resolution ({} on error → loopback
+    # defaults), so the detached server and everything that describes it agree.
+    # Explicit flags still win over config.
+    _, cfg_host, cfg_port, cfg_path = mcp_http.configured_endpoint()
+    host = host or cfg_host
+    port = port or cfg_port
+    path = path or cfg_path
 
     if not _is_loopback(host):
         # Not a prompt — this must never block a service start — but it must be
