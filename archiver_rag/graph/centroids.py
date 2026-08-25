@@ -97,6 +97,22 @@ def _entry_vec(entry, expected_fp: str) -> np.ndarray | None:
 # Public API
 # ──────────────────────────────────────────────────────────────────────────────
 
+def cached_centroids() -> dict[str, str]:
+    """Cached folder → fingerprint, straight off disk. Never embeds, never writes.
+
+    folder_centroids() re-embeds every stale or missing folder as a side effect of being
+    called, which is right for placement and wrong for a status readout — `status` must
+    stay cheap and must not mutate the cache just by being run. This reports what is
+    cached right now, nothing more.
+    """
+    cache = _load_cache()
+    return {
+        k: v.get("fp", "")
+        for k, v in cache.items()
+        if isinstance(v, dict)
+    }
+
+
 def folder_centroids(vault: Path) -> dict[str, np.ndarray]:
     """{vault-relative folder: unit centroid} for every folder with a description.
 

@@ -21,6 +21,12 @@ def vault_status() -> dict:
     empty_notes = []
     broken_links = []
 
+    # Tags and links are gathered in the same pass — this function reads every note in
+    # the vault and `archiver-rag health` calls it on every invocation, so a second full
+    # read just to count tags is the most expensive avoidable thing here.
+    tag_pattern = re.compile(r"(?:^tags:\s*\[([^\]]+)\]|#([\w/-]+))", re.MULTILINE)
+    tag_counts = {}
+
     for note in all_notes:
         rel = str(note.relative_to(vault))
         content = note.read_text(encoding="utf-8", errors="ignore")
@@ -44,14 +50,6 @@ def vault_status() -> dict:
             if link not in all_stems:
                 broken_links.append(f"{rel} → [[{link}]]")
 
-    # Orphaned notes — no incoming links
-    orphaned = [str(n.relative_to(vault)) for n in all_notes if n.stem not in incoming]
-
-    # Tags
-    tag_pattern = re.compile(r"(?:^tags:\s*\[([^\]]+)\]|#([\w/-]+))", re.MULTILINE)
-    tag_counts = {}
-    for note in all_notes:
-        content = note.read_text(encoding="utf-8", errors="ignore")
         for match in tag_pattern.finditer(content):
             if match.group(1):  # frontmatter tags
                 for tag in match.group(1).split(","):
@@ -61,6 +59,10 @@ def vault_status() -> dict:
             elif match.group(2):  # inline #tags
                 t = match.group(2)
                 tag_counts[t] = tag_counts.get(t, 0) + 1
+
+    # Orphaned notes — no incoming links. Computed after the pass, since `incoming` is
+    # only complete once every note's wikilinks have been read.
+    orphaned = [str(n.relative_to(vault)) for n in all_notes if n.stem not in incoming]
 
     most_used = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
@@ -77,10 +79,19 @@ def vault_status() -> dict:
             "folders": [str(d.relative_to(vault)) for d in sorted(all_folders)],
         },
         "health": {
+            # Lists are capped at 20 for readability; `counts` carries the real totals,
+            # which are otherwise unrecoverable from the truncated lists. Additive — the
+            # four list keys keep their existing shape for MCP consumers.
             "orphaned_notes": orphaned[:20],
             "no_frontmatter": no_frontmatter[:20],
             "empty_notes": empty_notes[:20],
             "broken_links": broken_links[:20],
+            "counts": {
+                "orphaned_notes": len(orphaned),
+                "no_frontmatter": len(no_frontmatter),
+                "empty_notes": len(empty_notes),
+                "broken_links": len(broken_links),
+            },
         },
         "tags": {"most_used": most_used, "total_unique": len(tag_counts)},
         "recent": {

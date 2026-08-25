@@ -75,10 +75,12 @@ For local development from a clone of this repo, use `pipx install --editable .`
 git clone https://github.com/FernandoJRR/archiver-rag && cd archiver-rag
 pipx install --editable .   # global CLI — required for MCP registration
 pip install -e ".[dev]"     # adds pytest
-pytest                      # 39 tests, ~0.3 s
+pytest                      # 250 tests, ~5 s
 ```
 
-`tests/` layout:
+Tests marked `slow` load the sentence-transformers model; skip them with `-m "not slow"`.
+
+`tests/` layout (highlights — see `CLAUDE.md` for the full file-by-file list):
 - `conftest.py` — `_no_real_vault` (autouse): patches `get_vault_path` in every module that imports it, so no test ever touches the real vault. `_no_real_home_paths` (autouse): redirects `archiver_rag.paths`' config/data/cache dirs so no test ever touches the real `~/.config/archiver-rag/`, `~/.local/share/archiver-rag/`, or `~/.cache/archiver-rag/`. Opt-in `tmp_vault` and `tmp_install` fixtures for tests that need real files.
 - `test_wikilinks.py` — 28 unit tests for the offset-based wikilink extractor
 - `test_linker_section.py` — 11 characterization tests for `_append_links_section`

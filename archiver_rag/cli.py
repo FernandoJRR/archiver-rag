@@ -46,11 +46,23 @@ def restart():
 
 
 @app.command()
-def status():
-    """Check if the watcher service is running"""
-    from archiver_rag.service import status as svc_status
+def status(
+    json_out: bool = typer.Option(
+        False, "--json", help="Emit the raw report as JSON"
+    ),
+):
+    """Service liveness, watcher activity, index drift, and effective config"""
+    import builtins
+    import json as _json
+    from archiver_rag.report import compose_status, render_status
 
-    svc_status()
+    report = compose_status()
+    if json_out:
+        # builtins.print, not rich's — rich would interpret [..] in paths as markup
+        # and hard-wrap long lines, neither of which survives a pipe into jq.
+        builtins.print(_json.dumps(report, indent=2, default=str))
+        return
+    render_status(report)
 
 
 @app.command()
@@ -133,17 +145,21 @@ def search(query: str = typer.Argument(..., help="Search query")):
 
 
 @app.command()
-def health():
-    """Check how many chunks are in the index"""
-    from archiver_rag.core.db import collection
+def health(
+    json_out: bool = typer.Option(
+        False, "--json", help="Emit the raw report as JSON"
+    ),
+):
+    """Index-vs-disk drift plus vault health — orphans, broken links, tags"""
+    import builtins
+    import json as _json
+    from archiver_rag.report import compose_health, render_health
 
-    count = collection.count()
-    print(f"[green]Total chunks in index: {count}[/green]")
-    if count > 0:
-        results = collection.peek(limit=3)
-        for doc, meta in zip(results["documents"], results["metadatas"]):
-            print(f"\n[blue]{meta['source']}[/blue]")
-            print(doc[:200])
+    report = compose_health()
+    if json_out:
+        builtins.print(_json.dumps(report, indent=2, default=str))
+        return
+    render_health(report)
 
 
 @app.command()

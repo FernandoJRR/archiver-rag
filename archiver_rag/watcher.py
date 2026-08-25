@@ -10,6 +10,7 @@ from archiver_rag.utils import get_vault_path, is_hidden_path, is_folder_note, i
 import os
 
 from archiver_rag.graph.linker import auto_link
+from archiver_rag import runtime
 
 # How long to wait for a "deleted" file to reappear before believing the delete.
 DELETE_SETTLE_SECONDS = 1.0
@@ -198,6 +199,7 @@ def _maybe_redescribe(rel_folder: str) -> None:
     )
     if result["action"] == "skipped_manual":
         return
+    runtime.record_event("described", rel_folder, counter="described")
     _log(f"Auto-described {rel_folder}/ → {result['action']} ({desc[:4]})")
     if result["gravity_well_warning"]:
         note = result["folder_note"]
@@ -355,6 +357,7 @@ class VaultHandler(FileSystemEventHandler):
                         pass
                 reason = suggestion.get("reason", "")
                 sim = suggestion.get("similarity", 0.0)
+                runtime.record_event("placed", f"{target}/{note_path.name}", counter="placed")
                 _log(
                     f"Auto-placed {note_path.name} → {target}/ "
                     f"({reason}, {sim:.2f})"
@@ -375,6 +378,7 @@ class VaultHandler(FileSystemEventHandler):
         if not is_indexable_note(p):
             return
         _log(f"New file detected: {path}")
+        runtime.record_event("created", path, counter="ingested")
         ingest_file(path)
         auto_link(path)
         moved_to = self._maybe_cluster(path)
@@ -398,6 +402,7 @@ class VaultHandler(FileSystemEventHandler):
         if not is_indexable_note(p):
             return
         _log(f"File modified: {path}")
+        runtime.record_event("modified", path, counter="ingested")
         ingest_file(path)
         auto_link(path)
 
@@ -427,11 +432,13 @@ class VaultHandler(FileSystemEventHandler):
         except ValueError:
             source = Path(path).name
         _log(f"File deleted: {source}")
+        runtime.record_event("deleted", source, counter="deleted")
         collection.delete(where={"source": source})
         from archiver_rag.vault.notes import sweep_dead_links
 
         sweep_result = sweep_dead_links(Path(vault_path), [Path(path).stem])
         if sweep_result["swept"]:
+            runtime.record_event("swept", source, counter="swept")
             _log(f"Swept links in: {', '.join(sweep_result['swept'])}")
 
         try:
@@ -507,6 +514,7 @@ class VaultHandler(FileSystemEventHandler):
                 dst_source = Path(dst).name
             is_new_note = not src_is_note and not _is_indexed(dst_source)
 
+            runtime.record_event("moved", dst_source, counter="ingested")
             ingest_file(dst)
             auto_link(dst)
             # Rewrite [[wikilinks]] that pointed at the old stem. Only when the
@@ -543,6 +551,7 @@ class VaultHandler(FileSystemEventHandler):
 
         sweep_result = sweep_dead_links(Path(vault_path), [Path(src).stem])
         if sweep_result["swept"]:
+            runtime.record_event("swept", Path(src).stem, counter="swept")
             _log(f"Swept links in: {', '.join(sweep_result['swept'])}")
         if src_folder is not None:
             _maybe_redescribe(src_folder)
@@ -566,6 +575,7 @@ def watch(vault_path: str):
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
+    runtime.record_start(vault_path)
     _log(f"Watching vault at {vault_path}...")
     while observer.is_alive():
         time.sleep(1)
