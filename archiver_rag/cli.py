@@ -628,6 +628,11 @@ def relink(
         "--restart-watcher/--no-restart-watcher",
         help="If the watcher is running, stop it for the rewrite and start it back up after (default: on)",
     ),
+    sync_after: bool = typer.Option(
+        True,
+        "--sync/--no-sync",
+        help="Re-embed rewritten notes afterward via sync_vault (default: on)",
+    ),
 ):
     """One-time repair: rebuild every note's ## Related section under the margin rule.
 
@@ -646,8 +651,13 @@ def relink(
     worse, interleave with this command's own in-progress candidate-selection queries
     against the same ChromaDB collection. Dry-run analysis never writes, so it's safe
     to run alongside a live watcher regardless of this flag.
-    Afterwards: `archiver-rag index` (chunks embed Related-stripped body; a stale
-    chunk from before this repair still reflects the old, larger link list).
+
+    After writing, `sync_vault` runs by default (see --no-sync) — mtime-based, so it
+    re-embeds only the notes this command actually rewrote rather than the whole
+    vault (`archiver-rag index` would re-embed every note unconditionally, wasteful
+    when relink typically touches a subset). Runs inside the same stopped-watcher
+    window as the rewrite, before the watcher restarts, so nothing observes a stale
+    index in between.
     """
     from archiver_rag.utils import get_vault_path, is_indexable_note, note_stems
     from archiver_rag.graph.linker import (
@@ -735,7 +745,8 @@ def relink(
 
         prompt = f"\nRewrite {len(pending_writes)} note(s)?"
         if watcher_was_running:
-            prompt += " (watcher will be stopped during the rewrite, then restarted)"
+            prompt += " (watcher will be stopped during the rewrite"
+            prompt += ", re-embedded, then restarted)" if sync_after else ", then restarted)"
         elif service.service_state().get("running", False):
             # restart_watcher=False and the watcher is live — writes will race it.
             prompt += " [yellow](watcher is running and will NOT be stopped — writes may race it)[/yellow]"
@@ -751,7 +762,18 @@ def relink(
         for note, updated in pending_writes:
             note.write_text(updated, encoding="utf-8")
         print(f"\n[green]✅ Rewrote {len(pending_writes)} note(s)[/green]")
-        print("[dim]Run `archiver-rag index` next so embedded chunks reflect the repaired Related sections.[/dim]")
+
+        if sync_after:
+            from archiver_rag.core.ingest import sync_vault
+
+            print("[dim]Re-embedding rewritten notes (sync)...[/dim]")
+            sync_result = sync_vault(str(vault))
+            print(
+                f"[green]✅ Synced:[/green] {sync_result['indexed']} re-embedded, "
+                f"{sync_result['up_to_date']} already current, {sync_result['pruned']} pruned"
+            )
+        else:
+            print("[dim]Run `archiver-rag sync` next so embedded chunks reflect the repaired Related sections.[/dim]")
     finally:
         if watcher_was_running:
             print("[dim]Restarting watcher...[/dim]")
