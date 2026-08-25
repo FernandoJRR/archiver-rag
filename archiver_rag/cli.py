@@ -623,6 +623,11 @@ def relink(
         None, "--margin", help="Override advanced.link_margin for this run (default: config, 0.05)"
     ),
     yes: bool = typer.Option(False, "--yes", help="Skip confirmation on --apply"),
+    restart_watcher: bool = typer.Option(
+        True,
+        "--restart-watcher/--no-restart-watcher",
+        help="If the watcher is running, stop it for the rewrite and start it back up after (default: on)",
+    ),
 ):
     """One-time repair: rebuild every note's ## Related section under the margin rule.
 
@@ -635,11 +640,14 @@ def relink(
     Dry-run by default: prints per-note before/after Related-link counts and
     vault-wide density, writes nothing. Use --apply to actually rewrite.
 
-    Run with the watcher STOPPED (`archiver-rag stop`) — each rewrite this makes
-    would otherwise fire a watcher re-ingest + auto_link on top of this pass.
+    If the watcher is running when --apply writes, it is stopped first and restarted
+    once the writes finish (see --no-restart-watcher to manage this yourself instead)
+    — each rewrite would otherwise fire a watcher re-ingest + auto_link mid-pass, and
+    worse, interleave with this command's own in-progress candidate-selection queries
+    against the same ChromaDB collection. Dry-run analysis never writes, so it's safe
+    to run alongside a live watcher regardless of this flag.
     Afterwards: `archiver-rag index` (chunks embed Related-stripped body; a stale
-    chunk from before this repair still reflects the old, larger link list) then
-    `archiver-rag start`.
+    chunk from before this repair still reflects the old, larger link list).
     """
     from archiver_rag.utils import get_vault_path, is_indexable_note, note_stems
     from archiver_rag.graph.linker import (
@@ -650,16 +658,7 @@ def relink(
         select_related_candidates,
     )
     from archiver_rag.wikilinks import iter_wikilinks
-    from archiver_rag.service import service_state
-
-    if service_state().get("running"):
-        print(
-            "[yellow]⚠️ The watcher is running.[/yellow] Each rewrite this command "
-            "makes would trigger a watcher re-ingest + auto_link on top of this pass. "
-            "Run [bold]archiver-rag stop[/bold] first, then re-run this command."
-        )
-        if apply:
-            raise typer.Exit(1)
+    from archiver_rag import service
 
     vault = Path(get_vault_path())
     notes = sorted(f for f in vault.rglob("*.md") if is_indexable_note(f))
@@ -729,18 +728,34 @@ def relink(
         print("\n[green]Nothing to write.[/green]")
         return
 
+    watcher_was_running = restart_watcher and service.service_state().get("running", False)
+
     if not yes:
         from rich.prompt import Confirm
 
-        if not Confirm.ask(f"\nRewrite {len(pending_writes)} note(s)?", default=False):
+        prompt = f"\nRewrite {len(pending_writes)} note(s)?"
+        if watcher_was_running:
+            prompt += " (watcher will be stopped during the rewrite, then restarted)"
+        elif service.service_state().get("running", False):
+            # restart_watcher=False and the watcher is live — writes will race it.
+            prompt += " [yellow](watcher is running and will NOT be stopped — writes may race it)[/yellow]"
+        if not Confirm.ask(prompt, default=False):
             print("Aborted.")
             return
 
-    for note, updated in pending_writes:
-        note.write_text(updated, encoding="utf-8")
+    if watcher_was_running:
+        print("[dim]Stopping watcher for the rewrite...[/dim]")
+        service.stop()
 
-    print(f"\n[green]✅ Rewrote {len(pending_writes)} note(s)[/green]")
-    print("[dim]Run `archiver-rag index` next so embedded chunks reflect the repaired Related sections.[/dim]")
+    try:
+        for note, updated in pending_writes:
+            note.write_text(updated, encoding="utf-8")
+        print(f"\n[green]✅ Rewrote {len(pending_writes)} note(s)[/green]")
+        print("[dim]Run `archiver-rag index` next so embedded chunks reflect the repaired Related sections.[/dim]")
+    finally:
+        if watcher_was_running:
+            print("[dim]Restarting watcher...[/dim]")
+            service.start()
 
 
 @app.command(name="config")
