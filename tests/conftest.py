@@ -96,6 +96,16 @@ def tmp_install(tmp_path, monkeypatch):
     }
 
 
+@pytest.fixture
+def anyio_backend():
+    """anyio's pytest plugin runs @pytest.mark.anyio tests on every backend it can find.
+
+    Pinning asyncio keeps the HTTP transport tests from also being run under trio, which
+    is not a supported runtime for this project and is not installed.
+    """
+    return "asyncio"
+
+
 class _VaultBuilder:
     def __init__(self, root: Path):
         self.root = root

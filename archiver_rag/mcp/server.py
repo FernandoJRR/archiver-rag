@@ -1,9 +1,11 @@
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
-from pathlib import Path
 import json
 import asyncio
+import threading
+
+import anyio.to_thread
 
 from archiver_rag.core.search import search_vault
 from archiver_rag.graph.connections import get_connections
@@ -43,6 +45,11 @@ async def list_tools() -> list[Tool]:
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "Filter to notes containing any of these tags. Matched case-insensitively; any overlap returns the note.",
+                    },
+                    "min_score": {
+                        "type": "number",
+                        "description": "Minimum semantic score before graph reranking (default 0.35). Lower to widen recall.",
+                        "default": 0.35,
                     },
                 },
                 "required": ["query"],
@@ -189,8 +196,40 @@ async def list_tools() -> list[Tool]:
     ]
 
 
+# Tools that read-modify-write files in the vault. move_notes rewrites [[wikilinks]]
+# across every note, and log_note / cluster_* mutate on disk — two of those running
+# concurrently would interleave rewrites and lose edits. This is a correctness lock, not
+# a performance tweak: under stdio the transport serialized requests so it was
+# unreachable, but the HTTP transport can have several calls in flight at once. Reads
+# (search_vault, vault_status, get_connections) stay parallel.
+#
+# Scope is this process only. The watcher runs separately and is unaffected — that
+# cross-process story is exactly as it was before HTTP existed.
+_VAULT_WRITE_LOCK = threading.Lock()
+_MUTATING_TOOLS = {"move_notes", "log_note", "cluster_vault", "cluster_note"}
+
+
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    """Run the tool off the event loop.
+
+    Every handler body below is synchronous and slow — search_vault embeds a query and
+    hits ChromaDB, vault_status reads every note in the vault. Calling that directly
+    from this coroutine blocks the event loop, which stdio hid (one client, one request
+    at a time) and HTTP would not: one in-flight search would stall every other client
+    and the protocol traffic with it.
+    """
+    return await anyio.to_thread.run_sync(lambda: _dispatch(name, arguments))
+
+
+def _dispatch(name: str, arguments: dict) -> list[TextContent]:
+    if name in _MUTATING_TOOLS:
+        with _VAULT_WRITE_LOCK:
+            return _call(name, arguments)
+    return _call(name, arguments)
+
+
+def _call(name: str, arguments: dict) -> list[TextContent]:
     if name == "search_vault":
         reranked = search_vault(
             query=arguments["query"],

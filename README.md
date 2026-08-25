@@ -128,6 +128,126 @@ claude mcp add --scope user archiver-rag $(which archiver-rag) serve
 
 ---
 
+## HTTP transport
+
+By default the server speaks MCP over **stdio**: your client spawns it as a child
+process. That means one client per server, and no way to reach the vault from another
+machine. `--transport http` serves the same seven tools over streamable HTTP instead, so
+several clients can share one warm process:
+
+```bash
+archiver-rag serve --transport http            # http://127.0.0.1:8077/mcp
+```
+
+Register it with Claude Code:
+
+```bash
+claude mcp add --scope user --transport http archiver-rag http://127.0.0.1:8077/mcp
+```
+
+### Other clients
+
+Both transports work with any MCP-compatible client. Replace `/path/to/archiver-rag`
+with the output of `which archiver-rag`.
+
+#### opencode
+
+Add an `mcp` block to `~/.config/opencode/opencode.jsonc` (or `opencode.json`, or a
+project-local file of either name — opencode's schema allows comments and trailing
+commas in both):
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    // stdio — opencode launches the server itself
+    "archiver-rag": {
+      "type": "local",
+      "command": ["/path/to/archiver-rag", "serve"],
+      "enabled": true,
+      "timeout": 30000
+    },
+    // HTTP — connects to a server you started separately
+    "archiver-rag-http": {
+      "type": "remote",
+      "url": "http://127.0.0.1:8077/mcp",
+      "enabled": true,
+      "timeout": 30000
+    }
+  }
+}
+```
+
+Use one or the other — both are shown here only to give the shape of each.
+
+> **Raise `timeout`.** opencode defaults to 5000 ms per request, and the *first*
+> `search_vault` call loads the embedding model — measured at ~5 s on a warm disk, right
+> at the limit. Without a higher timeout the first search may fail and then succeed on a
+> retry, which is a confusing way to meet the tool. Later calls take ~70 ms.
+
+#### Codex CLI
+
+```bash
+# stdio — Codex launches the server itself
+codex mcp add archiver-rag -- $(which archiver-rag) serve
+
+# HTTP — connects to a server you started separately
+codex mcp add archiver-rag-http --url http://127.0.0.1:8077/mcp
+```
+
+Both write to `~/.codex/config.toml`, and you can equally hand-edit it:
+
+```toml
+[mcp_servers.archiver-rag]
+command = "/path/to/archiver-rag"
+args = ["serve"]
+
+[mcp_servers.archiver-rag-http]
+url = "http://127.0.0.1:8077/mcp"
+```
+
+Verify with `codex mcp list`. If your server sits behind a proxy that wants a token,
+`--bearer-token-env-var NAME` reads it from the environment — archiver-rag itself never
+checks it (see below).
+
+### Reaching it from another machine
+
+> **archiver-rag performs no authentication and terminates no TLS.** Anyone who can
+> reach the port has full access: the entire vault is readable, and `log_note`,
+> `move_notes` and `cluster_vault` can modify it.
+
+It is deliberately not this tool's job to decide how you secure that. Keep the server on
+loopback and put a layer you already trust in front of it — a reverse proxy terminating
+TLS, an SSH tunnel, a VPN, or a private overlay network. The server does not need to know
+which; it stays on plain HTTP at `127.0.0.1:8077` in every case.
+
+If you bind beyond loopback (`--host 0.0.0.0`), the CLI prints a warning — heed it. You
+can additionally enable DNS-rebinding protection by naming the hostnames you expect to
+serve:
+
+```bash
+archiver-rag serve --transport http --allowed-host vault.internal.example
+```
+
+Requests arriving with any other `Host` header are rejected with `421`. The bind address
+itself is always allowed, so local access keeps working.
+
+### Options
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--transport` | `stdio` | `stdio` or `http` |
+| `--host` | `127.0.0.1` | Bind address |
+| `--port` | `8077` | Bind port |
+| `--path` | `/mcp` | HTTP route |
+| `--allowed-host` | *(none)* | Enable DNS-rebinding protection for this Host (repeatable) |
+| `--stateful` | off | Use HTTP sessions + SSE instead of stateless JSON |
+
+`http_host`, `http_port` and `http_path` in `config.json` supply defaults for the
+corresponding flags.
+
+---
+
 ## Agent instructions (skills)
 
 Registering the MCP server gives an agent *access* to the tools — but agents tend to fall back on their own internal memory instead of reaching for the vault. The instruction files in [`skill/`](skill/) fix that: they enforce a **vault-first rule** so the agent searches and stores knowledge in your vault before anything else.
@@ -159,12 +279,14 @@ archiver-rag init              # one-time setup wizard
 archiver-rag start             # start the background watcher service
 archiver-rag stop              # stop the service
 archiver-rag restart           # restart the service
-archiver-rag status            # check if service is running
+archiver-rag status            # service liveness, watcher activity, index drift, config
+archiver-rag status --json     # same report as JSON
 archiver-rag index             # force re-index the entire vault (runs prune_orphans)
 archiver-rag sync              # ingest only new/modified notes + prune orphaned chunks
 archiver-rag prune             # remove index chunks whose source file no longer exists
 archiver-rag search "query"    # test semantic search from the terminal
-archiver-rag health            # chunk count and index peek
+archiver-rag health            # index-vs-disk drift + vault health (orphans, broken links)
+archiver-rag health --json     # same report as JSON
 archiver-rag logs              # tail the service log
 
 # Knowledge logging

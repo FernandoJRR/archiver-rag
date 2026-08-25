@@ -653,12 +653,73 @@ def config_cmd(
 
 
 @app.command(name="serve", hidden=True)
-def serve():
-    """Internal — runs the MCP server"""
+def serve(
+    transport: str = typer.Option(
+        "stdio", "--transport", help="stdio (default) or http"
+    ),
+    host: str = typer.Option(None, "--host", help="HTTP bind address"),
+    port: int = typer.Option(None, "--port", help="HTTP port"),
+    path: str = typer.Option(None, "--path", help="HTTP route, e.g. /mcp"),
+    allowed_host: list[str] = typer.Option(
+        [], "--allowed-host",
+        help="Enable DNS-rebinding protection for this Host (repeatable)",
+    ),
+    stateful: bool = typer.Option(
+        False, "--stateful", help="Use HTTP sessions + SSE instead of stateless JSON"
+    ),
+):
+    """Internal — runs the MCP server (stdio by default, or streamable HTTP)"""
     import asyncio
-    from archiver_rag.mcp.server import main
 
-    asyncio.run(main())
+    if transport == "stdio":
+        from archiver_rag.mcp.server import main
+
+        asyncio.run(main())
+        return
+
+    if transport != "http":
+        print(f"[red]Unknown transport: {transport}[/red] — use 'stdio' or 'http'")
+        raise typer.Exit(1)
+
+    from archiver_rag.mcp import http as mcp_http
+    from archiver_rag.utils import load_config
+
+    # load_config() returns {} on any error, so a corrupt config degrades to the safe
+    # loopback defaults rather than binding somewhere unexpected.
+    cfg = load_config()
+    host = host or cfg.get("http_host", mcp_http.DEFAULT_HOST)
+    port = port or int(cfg.get("http_port", mcp_http.DEFAULT_PORT))
+    path = path or cfg.get("http_path", mcp_http.DEFAULT_PATH)
+
+    if not _is_loopback(host):
+        # Not a prompt — this must never block a service start — but it must be
+        # impossible to miss. There is no auth layer in archiver-rag by design.
+        print(
+            f"\n[yellow]⚠️  Binding to {host} with NO authentication.[/yellow]\n"
+            "    Every tool is exposed: the full vault is readable, and\n"
+            "    log_note / move_notes / cluster_vault can modify it.\n"
+            "    Put a TLS-terminating reverse proxy, VPN, or SSH tunnel in front.\n"
+        )
+
+    print(f"[green]MCP over HTTP:[/green] http://{host}:{port}{path}")
+    mcp_http.serve_http(
+        host=host, port=port, path=path,
+        stateless=not stateful,
+        allowed_hosts=list(allowed_host),
+    )
+
+
+def _is_loopback(host: str) -> bool:
+    import ipaddress
+
+    if host in ("localhost", "::1"):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        # A hostname we cannot classify without resolving it — warn rather than assume
+        # it is safe.
+        return False
 
 
 @app.command(name="watch", hidden=True)
