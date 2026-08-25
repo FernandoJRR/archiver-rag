@@ -12,6 +12,7 @@ from archiver_rag.utils import (
     extract_frontmatter,
     is_indexable_note,
     log,
+    strip_related_section,
 )
 from archiver_rag.wikilinks import extract_wikilinks
 
@@ -79,8 +80,11 @@ def ingest_file(filepath: str):
     # Step 1: Build contextual prefix
     prefix = _build_context_prefix(folder, links, tags, title)
 
-    # Chunk body
-    chunks = chunk(body)
+    # Chunk body — Related stripped first: it's a growing list of neighbour
+    # filenames written by auto_link, not content describing this note. Indexing
+    # it created a feedback loop (notes became "similar" because they linked to
+    # the same notes) and surfaced pure-link chunks in search results.
+    chunks = chunk(strip_related_section(body))
     if not chunks:
         return
 

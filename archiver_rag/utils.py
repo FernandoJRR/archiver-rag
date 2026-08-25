@@ -99,3 +99,24 @@ def log(msg: str) -> None:
     ghosts. Anything that runs inside the watcher process must log through here.
     """
     print(msg, flush=True)
+
+
+def strip_related_section(content: str) -> str:
+    """Remove the auto-generated ## Related block.
+
+    linker.py writes several neighbour slugs per note (see the margin-based selection
+    in graph/linker.py::auto_link). Counting or embedding them describes other notes,
+    not the one they're attached to — so every embedding call (ingest, term extraction,
+    placement, auto_link's own query) must strip this section first. Promoted here from
+    graph/terms.py because it now has three consumers: core/ingest.py, graph/linker.py,
+    graph/terms.py, and graph/placement.py.
+    """
+    # Lazy import: graph/linker.py imports from utils.py, so importing it back here
+    # at module level would be circular.
+    from archiver_rag.graph.linker import _find_related_section
+
+    span = _find_related_section(content)
+    if span is None:
+        return content
+    heading_start, _body_start, body_end = span
+    return content[:heading_start] + content[body_end:]

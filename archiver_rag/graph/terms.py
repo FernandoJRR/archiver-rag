@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-from archiver_rag.utils import extract_frontmatter, is_indexable_note, FOLDER_NOTE_NAME
+from archiver_rag.utils import extract_frontmatter, is_indexable_note, FOLDER_NOTE_NAME, strip_related_section
 from archiver_rag.vault.folder_notes import describable_folders
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -72,20 +72,10 @@ def _normalize(text: str) -> str:
 # Internal helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _strip_related_section(content: str) -> str:
-    """Remove the auto-generated ## Related block.
-
-    Linker writes ~12 neighbour slugs per note. Counting them produces a list of
-    other notes' filenames instead of terms that characterise the folder.
-    """
-    # Lazy import to avoid circular dependency at module level
-    from archiver_rag.graph.linker import _find_related_section
-
-    span = _find_related_section(content)
-    if span is None:
-        return content
-    heading_start, _body_start, body_end = span
-    return content[:heading_start] + content[body_end:]
+# _strip_related_section moved to utils.py (promoted — it now has consumers in
+# core/ingest.py and graph/linker.py too, not just this module and placement.py).
+# Kept as a private alias here so existing call sites in this file don't churn.
+_strip_related_section = strip_related_section
 
 
 def _tokenize(text: str) -> list[str]:

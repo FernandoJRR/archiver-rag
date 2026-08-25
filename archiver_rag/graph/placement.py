@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from archiver_rag.utils import extract_frontmatter
+from archiver_rag.utils import extract_frontmatter, strip_related_section
 from archiver_rag.graph import centroids as _centroids_mod
 
 
@@ -68,11 +68,7 @@ def note_content_text(path: Path) -> str:
         return ""
 
     _fm, body = extract_frontmatter(raw)
-
-    # Lazy import avoids a module-level cycle.
-    from archiver_rag.graph.terms import _strip_related_section
-
-    body = _strip_related_section(body).strip()
+    body = strip_related_section(body).strip()
     words = body.split()
     if len(words) > 512:
         body = " ".join(words[:512])

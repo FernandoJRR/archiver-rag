@@ -1,6 +1,18 @@
 from pathlib import Path
 from archiver_rag.utils import get_vault_path, build_link_map
 
+# hub_boost saturates at HUB_BOOST_SATURATION_INCOMING inbound links, capped at
+# HUB_BOOST_MAX. Originally saturated at 5 — calibrated when auto_link's per-run
+# append-only cap had driven mean inbound links to 25.7 (90% of notes >= 5), which
+# made this a near-constant +0.10 for nearly every result. After the wikilink
+# desaturation fix (see CLAUDE.md "Desaturating the wikilink graph" / vault note
+# wikilink-graph-desaturated-margin-based-linking-replaces-per-run-cap),
+# post-repair inbound counts measured mean 6.9, p75=9, p90=12, max=25 — 12 (~p90)
+# keeps the boost discriminative for the genuine hubs instead of maxing out ~69%
+# of results the way 5 did against the new distribution.
+HUB_BOOST_SATURATION_INCOMING = 12
+HUB_BOOST_MAX = 0.10
+
 
 def rerank(
     docs: list,
@@ -32,7 +44,13 @@ def rerank(
                 graph_boost += 0.10
 
         incoming_count = int(meta.get("incoming_count", 0))
-        hub_boost = round(min(incoming_count * 0.02, 0.10), 3)
+        hub_boost = round(
+            min(
+                incoming_count * (HUB_BOOST_MAX / HUB_BOOST_SATURATION_INCOMING),
+                HUB_BOOST_MAX,
+            ),
+            3,
+        )
 
         final_score = round(base_score + graph_boost + hub_boost, 3)
 

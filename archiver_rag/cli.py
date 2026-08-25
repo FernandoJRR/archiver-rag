@@ -614,6 +614,135 @@ def describe_cmd(
     print(f"\n[green]✅ {written} written, {skipped} skipped[/green]")
 
 
+@app.command()
+def relink(
+    apply: bool = typer.Option(
+        False, "--apply", help="Rewrite ## Related sections (default: dry-run report only)"
+    ),
+    margin: float = typer.Option(
+        None, "--margin", help="Override advanced.link_margin for this run (default: config, 0.05)"
+    ),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation on --apply"),
+):
+    """One-time repair: rebuild every note's ## Related section under the margin rule.
+
+    auto_link's old per-run append-only cap let ## Related links accumulate without
+    bound (5 new per save, nothing ever removed a still-resolving link) — this vault
+    measured mean 25.2 links/note, density 0.66, before the margin rule replaced it.
+    The margin rule only stops *future* growth; it doesn't retroactively trim what's
+    already there. This command applies the same rebuild, in one pass, to every note.
+
+    Dry-run by default: prints per-note before/after Related-link counts and
+    vault-wide density, writes nothing. Use --apply to actually rewrite.
+
+    Run with the watcher STOPPED (`archiver-rag stop`) — each rewrite this makes
+    would otherwise fire a watcher re-ingest + auto_link on top of this pass.
+    Afterwards: `archiver-rag index` (chunks embed Related-stripped body; a stale
+    chunk from before this repair still reflects the old, larger link list) then
+    `archiver-rag start`.
+    """
+    from archiver_rag.utils import get_vault_path, is_indexable_note, note_stems
+    from archiver_rag.graph.linker import (
+        _append_links_section,
+        _find_related_section,
+        _get_existing_links,
+        _get_link_margin_config,
+        select_related_candidates,
+    )
+    from archiver_rag.wikilinks import iter_wikilinks
+    from archiver_rag.service import service_state
+
+    if service_state().get("running"):
+        print(
+            "[yellow]⚠️ The watcher is running.[/yellow] Each rewrite this command "
+            "makes would trigger a watcher re-ingest + auto_link on top of this pass. "
+            "Run [bold]archiver-rag stop[/bold] first, then re-run this command."
+        )
+        if apply:
+            raise typer.Exit(1)
+
+    vault = Path(get_vault_path())
+    notes = sorted(f for f in vault.rglob("*.md") if is_indexable_note(f))
+    if not notes:
+        print("[dim]No notes found.[/dim]")
+        return
+
+    cfg_margin, max_total_links = _get_link_margin_config()
+    link_margin = margin if margin is not None else cfg_margin
+    valid = note_stems(vault)
+
+    def _related_count(content: str) -> int:
+        loc = _find_related_section(content)
+        if loc is None:
+            return 0
+        return len(list(iter_wikilinks(content[loc[1] : loc[2]], skip_code=False)))
+
+    rows: list[tuple[str, int, int]] = []
+    total_before = 0
+    total_after = 0
+    pending_writes: list[tuple[Path, str]] = []
+
+    with typer.progressbar(notes, label="Analyzing notes") as progress:
+        for note in progress:
+            content = note.read_text(encoding="utf-8", errors="ignore")
+            if not content.strip():
+                continue
+            before = _related_count(content)
+
+            existing_links = _get_existing_links(content)
+            top_links, keep_targets = select_related_candidates(
+                content, note.stem, existing_links, 0.55, link_margin, max_total_links
+            )
+            updated = _append_links_section(content, top_links, valid, keep_targets)
+            after = _related_count(updated) if updated is not content else before
+
+            total_before += before
+            total_after += after
+            if after != before:
+                rel = str(note.relative_to(vault))
+                rows.append((rel, before, after))
+                if updated is not content:
+                    pending_writes.append((note, updated))
+
+    n = len(notes)
+    denom = n * (n - 1) if n > 1 else 1
+    density_before = round(total_before / denom, 3)
+    density_after = round(total_after / denom, 3)
+
+    print(f"\n[bold]Relink report — {len(notes)} notes, margin={link_margin}[/bold]\n")
+    if rows:
+        for rel, before, after in sorted(rows, key=lambda r: r[1] - r[2], reverse=True)[:30]:
+            print(f"  {rel}: {before} → {after}")
+        if len(rows) > 30:
+            print(f"  [dim]… and {len(rows) - 30} more[/dim]")
+    else:
+        print("[green]No notes would change.[/green]")
+
+    print(f"\n[bold]Related-links total:[/bold] {total_before} → {total_after}")
+    print(f"[bold]Density estimate:[/bold] {density_before} → {density_after}")
+
+    if not apply:
+        print(f"\n[dim]Dry-run — run with --apply to rewrite {len(pending_writes)} note(s)[/dim]")
+        return
+
+    if not pending_writes:
+        print("\n[green]Nothing to write.[/green]")
+        return
+
+    if not yes:
+        from rich.prompt import Confirm
+
+        if not Confirm.ask(f"\nRewrite {len(pending_writes)} note(s)?", default=False):
+            print("Aborted.")
+            return
+
+    for note, updated in pending_writes:
+        note.write_text(updated, encoding="utf-8")
+
+    print(f"\n[green]✅ Rewrote {len(pending_writes)} note(s)[/green]")
+    print("[dim]Run `archiver-rag index` next so embedded chunks reflect the repaired Related sections.[/dim]")
+
+
 @app.command(name="config")
 def config_cmd(
     auto_cluster: bool = typer.Option(
