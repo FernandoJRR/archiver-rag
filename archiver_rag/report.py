@@ -90,6 +90,7 @@ def compose_status() -> dict:
             "vault_path": vault_path,
             "auto_cluster": config.get("auto_cluster"),
             "auto_describe": config.get("auto_describe"),
+            "auto_inbox": config.get("auto_inbox"),
             "placement_similarity_threshold": config.get(
                 "placement_similarity_threshold"
             ),
@@ -156,10 +157,21 @@ def _placement_state(vault: Path) -> dict:
     """
     try:
         from archiver_rag.graph.centroids import cached_centroids
+        from archiver_rag.utils import is_indexable_note
         from archiver_rag.vault.folder_notes import (
             describable_folders,
             described_folders,
             read_folder_note,
+        )
+
+        # Gate 2 (auto_inbox): note count sitting in inbox/, or None if the folder
+        # doesn't exist yet — a plain directory listing, same cheap/non-mutating
+        # contract as the rest of this function (no embeddings, no centroid calls).
+        inbox_dir = vault / "inbox"
+        inbox_notes = (
+            sum(1 for f in inbox_dir.iterdir() if f.is_file() and is_indexable_note(f))
+            if inbox_dir.is_dir()
+            else None
         )
 
         describable = set(describable_folders(vault))
@@ -182,6 +194,7 @@ def _placement_state(vault: Path) -> dict:
             "undescribed": sorted(describable - set(described)),
             "manual_locked": manual_locked,
             "centroids_cached": len(cached_centroids()),
+            "inbox_notes": inbox_notes,
             "error": None,
         }
     except Exception as e:
@@ -293,6 +306,10 @@ def render_status(report: dict) -> None:
                 f"type_fallback: {_onoff(cfg['type_fallback'])}"
             )
             print(f"  auto_describe: {_onoff(cfg['auto_describe'])}")
+            inbox_line = f"  auto_inbox: {_onoff(cfg['auto_inbox'])}"
+            if pl["inbox_notes"] is not None:
+                inbox_line += f"   inbox: {pl['inbox_notes']} notes"
+            print(inbox_line)
             print(
                 f"  {pl['competing']} of {pl['describable']} folders competing "
                 f"({len(pl['undescribed'])} undescribed · "

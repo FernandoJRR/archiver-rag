@@ -42,7 +42,7 @@ def _status(**overrides) -> dict:
         "config": {
             "configured": True, "vault_path": "/v", "auto_cluster": True,
             "auto_describe": True, "placement_similarity_threshold": 0.5,
-            "type_fallback": True,
+            "type_fallback": True, "auto_inbox": False,
             "paths": {
                 "config_file": "/c/config.json", "config_exists": True,
                 "data_dir": "/d", "cache_dir": "/ca",
@@ -58,7 +58,7 @@ def _status(**overrides) -> dict:
         "placement": {
             "describable": 14, "competing": 9, "competing_folders": ["Projects/X"],
             "undescribed": ["a", "b", "c", "d", "e"], "manual_locked": ["decision"],
-            "centroids_cached": 9, "error": None,
+            "centroids_cached": 9, "inbox_notes": None, "error": None,
         },
     }
     base.update(overrides)
@@ -73,6 +73,26 @@ def test_healthy_status_renders_running_and_in_sync(capsys):
     assert "index matches disk" in out
     assert "42 ingested" in out
     assert "9 of 14 folders competing" in out
+
+
+def test_auto_inbox_off_by_default_shows_off_and_no_count(capsys):
+    """auto_inbox defaults to off, and inbox_notes is None until inbox/ exists —
+    no note count should render appended to that line in that case."""
+    report.render_status(_status())
+    out = capsys.readouterr().out
+
+    assert "auto_inbox: off\n" in out, "no note count should be appended when inbox_notes is None"
+
+
+def test_auto_inbox_on_shows_note_count(capsys):
+    status = _status()
+    status["config"]["auto_inbox"] = True
+    status["placement"]["inbox_notes"] = 5
+    report.render_status(status)
+    out = capsys.readouterr().out
+
+    assert "auto_inbox: on" in out
+    assert "inbox: 5 notes" in out
 
 
 def test_crash_loop_is_not_reported_as_running(capsys):
@@ -280,6 +300,29 @@ def test_health_survives_a_vault_scan_failure(capsys):
 
     assert "OSError: boom" in out
     assert "812 chunks" in out  # index side still reported
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# _placement_state — inbox_notes (Gate 2)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_placement_state_inbox_notes_none_when_no_inbox_folder(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    result = report._placement_state(vault)
+    assert result["inbox_notes"] is None
+
+
+def test_placement_state_counts_notes_in_inbox_folder(tmp_path):
+    vault = tmp_path / "vault"
+    inbox = vault / "inbox"
+    inbox.mkdir(parents=True)
+    (inbox / "a.md").write_text("# A", encoding="utf-8")
+    (inbox / "b.md").write_text("# B", encoding="utf-8")
+    (inbox / "_folder.md").write_text("---\nsource: manual\n---\n", encoding="utf-8")
+
+    result = report._placement_state(vault)
+    assert result["inbox_notes"] == 2, "the _folder.md sidecar must not be counted"
 
 
 def test_compose_health_reports_unconfigured_rather_than_exiting():
