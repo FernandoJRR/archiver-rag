@@ -168,14 +168,12 @@ def suggest_folder(
     identity_vec = _centroids_mod._unit(vecs[0])
     content_vec = _centroids_mod._unit(vecs[1]) if content_text else None
 
-    w_id_eff, w_content_eff = (w_identity, w_content) if content_vec is not None else (1.0, 0.0)
-
-    scores: dict[str, float] = {}
-    for rel_folder, centroid in centroids.items():
-        sim = w_id_eff * _centroids_mod.cosine(identity_vec, centroid)
-        if content_vec is not None:
-            sim += w_content_eff * _centroids_mod.cosine(content_vec, centroid)
-        scores[rel_folder] = sim
+    scores: dict[str, float] = {
+        rel_folder: _centroids_mod.weighted_cosine(
+            [(w_identity, identity_vec, centroid), (w_content, content_vec, centroid)]
+        )
+        for rel_folder, centroid in centroids.items()
+    }
 
     if name_prefix_bonus:
         # scores' keys are exactly centroids' keys (folder_centroids()'s output) —

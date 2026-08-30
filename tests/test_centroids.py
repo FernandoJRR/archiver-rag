@@ -14,6 +14,7 @@ from archiver_rag.graph.centroids import (
     fingerprint,
     _unit,
     cosine,
+    weighted_cosine,
     folder_centroids,
     refresh_centroid,
     drop_centroid,
@@ -106,6 +107,39 @@ def test_cosine_orthogonal_vectors():
     a = _unit([1.0, 0.0])
     b = _unit([0.0, 1.0])
     assert abs(cosine(a, b)) < 1e-5
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# weighted_cosine — shared by suggest_folder (note vs. folder centroid) and
+# graph/inbox.py (note vs. note), so the weighting/fallback logic lives once.
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_weighted_cosine_two_channels_matches_manual_sum():
+    a1, a2 = _unit([1.0, 0.0]), _unit([0.0, 1.0])
+    b1, b2 = _unit([1.0, 0.0]), _unit([0.0, 1.0])
+    result = weighted_cosine([(0.6, a1, b1), (0.4, a2, b2)])
+    expected = 0.6 * cosine(a1, b1) + 0.4 * cosine(a2, b2)
+    assert abs(result - expected) < 1e-6
+
+
+def test_weighted_cosine_missing_channel_renormalizes_to_identity_only():
+    """Mirrors suggest_folder's original 'no body -> identity-only, effective
+    weight 1.0' fallback: dropping one channel must not silently halve the score."""
+    identity = _unit([1.0, 0.0])
+    result = weighted_cosine([(0.6, identity, identity), (0.4, None, None)])
+    assert abs(result - 1.0) < 1e-6
+
+
+def test_weighted_cosine_all_channels_missing_returns_zero():
+    assert weighted_cosine([(0.6, None, None), (0.4, None, None)]) == 0.0
+
+
+def test_weighted_cosine_partial_missing_pair_drops_that_channel():
+    """A channel with only one side present (e.g. vec_a exists, vec_b is None) is
+    dropped just like a fully-missing channel — cosine needs both sides."""
+    identity = _unit([1.0, 0.0])
+    result = weighted_cosine([(0.6, identity, identity), (0.4, identity, None)])
+    assert abs(result - 1.0) < 1e-6
 
 
 # ──────────────────────────────────────────────────────────────────────────────

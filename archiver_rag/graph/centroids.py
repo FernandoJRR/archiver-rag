@@ -61,6 +61,23 @@ def cosine(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b))
 
 
+def weighted_cosine(channels: list[tuple[float, np.ndarray | None, np.ndarray | None]]) -> float:
+    """Weighted sum of cosine similarities across N channels.
+
+    A channel missing either vector is dropped and the remaining weights are
+    renormalized to sum to 1 — generalizes suggest_folder's original "no body ->
+    identity-only, effective weight 1.0" fallback to any number of channels.
+    Shared by graph/placement.py::suggest_folder (note identity+content vs. a single
+    folder centroid) and graph/inbox.py's note-vs-note similarity — same formula,
+    different vectors passed in, so the weighting logic lives in exactly one place.
+    """
+    valid = [(w, a, b) for w, a, b in channels if a is not None and b is not None]
+    if not valid:
+        return 0.0
+    total_w = sum(w for w, _, _ in valid)
+    return sum((w / total_w) * cosine(a, b) for w, a, b in valid)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Cache I/O — every path fails soft. A cache is an optimization, never a source
 # of truth, so an unreadable or unwritable one must only cost re-embedding.

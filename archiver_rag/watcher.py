@@ -140,6 +140,60 @@ def _get_folder_vacancy_grace_periods() -> int:
         return 3
 
 
+def _get_inbox_config() -> tuple[bool, int, float]:
+    """Return (auto_inbox, inbox_min_cluster_size, inbox_similarity_threshold).
+
+    Gate 2 (folder-lifecycle-splits-from-autonaming-two-gates-and-inbox-clustering-hole):
+    notes with no semantic match and no type: fallback route to inbox/ and get grouped
+    by embedding similarity (graph/inbox.py) — never by wikilink-graph topology, per
+    the incident that gated this feature in the first place.
+
+    Same safety contract as _get_cluster_config/_get_describe_config: must NOT go
+    through load_config(), whose {} error-return would make config.get("auto_inbox",
+    True) default to True. The except path returns auto_inbox=False (do nothing) —
+    uncertainty must never turn on a behavior that moves notes into a staging folder
+    and creates new folders from it. Both numeric defaults are placeholders, not
+    empirically validated — same status as inbox_min_cluster_size in the vault spec
+    and folder_vacancy_grace_periods when it first shipped.
+    """
+    try:
+        import json
+        from archiver_rag import paths
+
+        config = json.loads(paths.config_path().read_text())
+        advanced = config.get("advanced", {})
+        return (
+            bool(config.get("auto_inbox", False)),
+            int(advanced.get("inbox_min_cluster_size", 3)),
+            float(advanced.get("inbox_similarity_threshold", 0.5)),
+        )
+    except Exception:
+        return False, 3, 0.5
+
+
+def _ensure_inbox_locked(vault: Path) -> None:
+    """Write inbox/_folder.md as source: manual with empty terms, once.
+
+    Reuses the exact mechanism already used to permanently lock decision/gotcha/
+    lesson/pattern/reference out of placement (CLAUDE.md, "type-folders locked
+    description-less"): apply_extracted_terms never touches a source: manual folder
+    regardless of its terms, and folder_centroids() skips any folder whose
+    description_text() is empty. inbox/ is therefore simultaneously immune to
+    auto-description AND absent from placement candidacy, with zero changes to either
+    of those functions. Without this, _maybe_redescribe("inbox") — called
+    unconditionally by on_created/on_moved on whatever folder a note lands in — would
+    give inbox/ a real auto description the first time auto_describe runs, and it
+    would start competing as an ordinary placement destination: backwards, since
+    inbox is a staging net, not a topical folder.
+    """
+    from archiver_rag.vault.folder_notes import FolderNote, read_folder_note, write_folder_note
+
+    if read_folder_note(vault, "inbox") is None:
+        write_folder_note(
+            vault, FolderNote(rel_folder="inbox", source="manual", description_terms=[])
+        )
+
+
 # Recovery fix (folder collapse incident): a batch move (e.g. `place --all --apply`,
 # or a manual `archiver-rag cluster --apply`) fires one on_moved per note, and every one
 # of them redescribes its destination folder — N notes landing in the same folder meant
@@ -364,6 +418,57 @@ class VaultHandler(FileSystemEventHandler):
                 )
                 return target
             return None
+
+        # Gate 2 — no semantic match and no type: fallback either (reason == "none").
+        # Route to inbox/ for embedding-based clustering, never wikilink-graph
+        # topology (see graph/inbox.py's module docstring for why that pathology is
+        # what gated this feature in the first place). Off by default: auto_inbox
+        # ships gated, same as auto_cluster/auto_describe were when first introduced.
+        if suggestion.get("reason") == "none":
+            auto_inbox, min_cluster_size, sim_threshold_inbox = _get_inbox_config()
+            if not auto_inbox:
+                return None
+            try:
+                current_rel_parent = str(note_path.parent.relative_to(vault))
+            except ValueError:
+                return None
+            if current_rel_parent == "inbox":
+                return None  # defensive; is_new_note already prevents re-entry
+
+            _ensure_inbox_locked(vault)
+
+            try:
+                src = str(note_path.relative_to(vault))
+            except ValueError:
+                return None
+
+            result = move_notes([{"source": src, "destination": f"inbox/{note_path.name}"}])
+            if not result.get("moved"):
+                return None
+            runtime.record_event("placed", f"inbox/{note_path.name}", counter="placed")
+            _log(f"Routed {note_path.name} → inbox/ (no semantic or type match)")
+
+            from archiver_rag.graph.inbox import maybe_spin_out_clusters
+
+            _, _, max_terms, mmr_lambda, _, _ = _get_describe_config()
+            spun_out = maybe_spin_out_clusters(
+                vault,
+                min_cluster_size=min_cluster_size,
+                threshold=sim_threshold_inbox,
+                w_identity=w_identity,
+                w_content=w_content,
+                max_terms=max_terms,
+                mmr_lambda=mmr_lambda,
+            )
+            dst_inbox_path = f"inbox/{note_path.name}"
+            for group in spun_out:
+                _log(
+                    f"Inbox cluster spun out → {group['folder']}/ "
+                    f"({len(group['notes'])} notes)"
+                )
+                if dst_inbox_path in group["notes"]:
+                    return group["folder"]
+            return "inbox"
 
         return None
 

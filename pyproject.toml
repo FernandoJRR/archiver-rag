@@ -12,6 +12,11 @@ dependencies = [
     "chromadb",
     "sentence-transformers",
     "watchdog",
+    # Arrives transitively via chromadb/sentence-transformers but is imported directly
+    # in graph/centroids.py, graph/terms.py, and graph/inbox.py — declared for the same
+    # reason starlette/uvicorn are below (relying on an undeclared transitive dep is
+    # how installs break silently).
+    "numpy",
     # Floor set by StreamableHTTPSessionManager (archiver_rag/mcp/http.py). starlette
     # and uvicorn arrive transitively via mcp, but the HTTP transport depends on them
     # directly, so they are declared rather than assumed.
