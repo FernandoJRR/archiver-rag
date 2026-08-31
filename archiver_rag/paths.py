@@ -10,7 +10,7 @@ without the per-module rebinding conftest.py has to do for get_vault_path.
 macOS gets the Unix backend forced, not platformdirs' native ~/Library/... default:
 this machine's other CLIs (nvim, git, gh, zed, starship) all already use ~/.config,
 so that's the idiomatic location for a tool in this world, not just on Linux.
-Windows is roadmap-only (see CLAUDE.md) but left on platformdirs' normal
+Windows is roadmap-only (see AGENTS.md) but left on platformdirs' normal
 auto-detected backend so it isn't actively broken if someone tries it.
 """
 

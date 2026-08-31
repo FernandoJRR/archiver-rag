@@ -203,7 +203,7 @@ def test_no_suggestion_never_triggers_cluster_vault_fallback(tmp_vault, cluster_
 
 
 # ── Gate 2: inbox routing (reason == "none") ─────────────────────────────────
-# auto_inbox ships off by default — see CLAUDE.md Pending Work. These tests cover
+# auto_inbox ships off by default — see AGENTS.md Pending Work. These tests cover
 # the watcher-level wiring in isolation; graph/inbox.py's own grouping/naming/
 # spin-out logic is covered by tests/test_inbox_clustering.py.
 

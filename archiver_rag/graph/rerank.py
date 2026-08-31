@@ -5,7 +5,7 @@ from archiver_rag.utils import get_vault_path, build_link_map
 # HUB_BOOST_MAX. Originally saturated at 5 — calibrated when auto_link's per-run
 # append-only cap had driven mean inbound links to 25.7 (90% of notes >= 5), which
 # made this a near-constant +0.10 for nearly every result. After the wikilink
-# desaturation fix (see CLAUDE.md "Desaturating the wikilink graph" / vault note
+# desaturation fix (see AGENTS.md "Desaturating the wikilink graph" / vault note
 # wikilink-graph-desaturated-margin-based-linking-replaces-per-run-cap),
 # post-repair inbound counts measured mean 6.9, p75=9, p90=12, max=25 — 12 (~p90)
 # keeps the boost discriminative for the genuine hubs instead of maxing out ~69%

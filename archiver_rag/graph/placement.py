@@ -181,7 +181,7 @@ def suggest_folder(
         # eligibility lookup needed. No separate "is this a project folder"
         # marker exists on FolderNote: type-folders (decision/gotcha/lesson/
         # pattern/reference) structurally never have a _folder.md post-recovery
-        # (see CLAUDE.md, folder-collapse incident), so "currently described"
+        # (see AGENTS.md, folder-collapse incident), so "currently described"
         # already means "project folder" in this vault. If a type-folder is ever
         # given a description again, it would start receiving the bonus too —
         # revisit then.

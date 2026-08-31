@@ -175,7 +175,7 @@ def _ensure_inbox_locked(vault: Path) -> None:
     """Write inbox/_folder.md as source: manual with empty terms, once.
 
     Reuses the exact mechanism already used to permanently lock decision/gotcha/
-    lesson/pattern/reference out of placement (CLAUDE.md, "type-folders locked
+    lesson/pattern/reference out of placement (AGENTS.md, "type-folders locked
     description-less"): apply_extracted_terms never touches a source: manual folder
     regardless of its terms, and folder_centroids() skips any folder whose
     description_text() is empty. inbox/ is therefore simultaneously immune to
