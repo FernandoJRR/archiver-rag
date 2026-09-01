@@ -44,12 +44,19 @@ def configured_endpoint() -> tuple[str, str, int, str]:
 
     cfg = load_config()
     host = cfg.get("http_host", DEFAULT_HOST)
-    port = int(cfg.get("http_port", DEFAULT_PORT))
+    try:
+        port = int(cfg.get("http_port", DEFAULT_PORT))
+    except (TypeError, ValueError):
+        # A malformed http_port degrades to the default, same as load_config's `{}`
+        # contract for a corrupt/missing file — a bind address must never be garbage.
+        port = DEFAULT_PORT
     path = cfg.get("http_path", DEFAULT_PATH)
     return f"http://{host}:{port}{path}", host, port, path
 
 
-def _security_settings(allowed_hosts: list[str] | None) -> TransportSecuritySettings | None:
+def _security_settings(
+    allowed_hosts: list[str] | None,
+) -> TransportSecuritySettings | None:
     """DNS-rebinding protection, but only once the operator has said what to allow.
 
     The SDK's two defaults pull in opposite directions and the gap between them is a
@@ -74,15 +81,20 @@ def _security_settings(allowed_hosts: list[str] | None) -> TransportSecuritySett
 def build_app(
     *,
     stateless: bool = True,
-    json_response: bool = True,
+    json_response: bool = False,
     allowed_hosts: list[str] | None = None,
     path: str = DEFAULT_PATH,
 ) -> Starlette:
     """ASGI app serving MCP over streamable HTTP at `path`.
 
-    Stateless + JSON by default: all seven tools are plain request/response, with no
-    progress notifications, no sampling and nothing server-initiated, so sessions and an
-    SSE stream would buy nothing and cost session affinity plus reconnect handling.
+    Stateless + SSE responses by default. The session is still per-request — no
+    affinity, no reconnect handling — but in-flight notifications
+    (notifications/message, notifications/progress emitted while a tool runs) must
+    stream to the client, and JSON-response mode silently discards them: the SDK's
+    POST loop consumes every non-response message at debug level and returns only the
+    final result (verified in mcp/server/streamable_http.py::_handle_post_request).
+    SSE responses — the SDK's original streamable-HTTP behavior — deliver the
+    notifications inside the POST response body, before the final result frame.
 
     A fresh session manager is built per call because the SDK documents it as single-use
     — it cannot be restarted after its `run()` context exits.
@@ -105,7 +117,9 @@ def build_app(
     # endpoint as `func(request) -> response`; only a non-function callable is used as a
     # raw ASGI app, which is what the session manager needs.
     return Starlette(
-        routes=[Route(path, _Handler(session_manager), methods=["GET", "POST", "DELETE"])],
+        routes=[
+            Route(path, _Handler(session_manager), methods=["GET", "POST", "DELETE"])
+        ],
         lifespan=lifespan,
     )
 

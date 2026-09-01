@@ -24,6 +24,7 @@ All 6 measured phantoms in the vault are backtick/fence cases.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 Span = tuple[int, int]  # [start, end)
@@ -147,8 +148,6 @@ def iter_wikilinks(
 
     masked — caller-supplied additional spans to skip (e.g. section-range filtering).
     """
-    from typing import Iterator  # local import to avoid circular at module level
-
     if skip_code:
         code = code_spans(text)
     else:
