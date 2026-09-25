@@ -6,7 +6,5 @@ __pycache__/
 dist/
 build/
 .env
-CLAUDE.md
-AGENTS.md
 .DS_Store
 pyrightconfig.json
