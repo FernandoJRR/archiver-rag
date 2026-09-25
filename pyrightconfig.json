@@ -1,0 +1,5 @@
+{
+  "include": ["archiver_rag"],
+  "venvPath": "/Users/fernanrod/.local/pipx/venvs",
+  "venv": "archiver-rag"
+}
