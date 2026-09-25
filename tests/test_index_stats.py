@@ -52,8 +52,8 @@ def _chunks(vault, rel, n=2, mtime=None):
 
 
 def test_clean_vault_is_in_sync(tmp_vault, stub_collection):
-    a = tmp_vault.write("decision/a.md", "---\ntype: decision\n---\nbody")
-    b = tmp_vault.write("gotcha/b.md", "---\ntype: gotcha\n---\nbody")
+    tmp_vault.write("decision/a.md", "---\ntype: decision\n---\nbody")
+    tmp_vault.write("gotcha/b.md", "---\ntype: gotcha\n---\nbody")
     stub_collection(_chunks(tmp_vault.root, "decision/a.md") + _chunks(tmp_vault.root, "gotcha/b.md"))
 
     stats = index_stats(tmp_vault.root)

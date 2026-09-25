@@ -14,8 +14,6 @@ here touches the real heartbeat file.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from archiver_rag import runtime

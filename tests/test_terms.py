@@ -1,16 +1,16 @@
 """Tests for graph/terms.py — term extraction strategies."""
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from archiver_rag.graph.terms import (
-    _tokenize,
     _strip_related_section,
-    _terms_by_tags_corpus,
     _terms_by_ctfidf_corpus,
+    _terms_by_tags_corpus,
+    _tokenize,
     extract_terms,
 )
-from archiver_rag.utils import FOLDER_NOTE_NAME
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers

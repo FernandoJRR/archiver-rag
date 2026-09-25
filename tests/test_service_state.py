@@ -20,7 +20,6 @@ import pytest
 
 from archiver_rag import service
 
-
 # Trimmed from real `launchctl list com.archiver-rag` output.
 RUNNING = """{
 	"LimitLoadToSessionType" = "Aqua";

@@ -15,11 +15,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
-from archiver_rag.watcher import VaultHandler
 from archiver_rag.utils import FOLDER_NOTE_NAME
-
+from archiver_rag.watcher import VaultHandler
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Shared helpers
@@ -207,7 +204,7 @@ def test_on_modified_real_note_still_ingested(tmp_vault, monkeypatch):
     monkeypatch.setattr("archiver_rag.watcher.ingest_file", lambda p: ingested.append(p))
     monkeypatch.setattr("archiver_rag.watcher.auto_link", lambda p: None)
 
-    vault = Path(tmp_vault.root)
+    Path(tmp_vault.root)
     note = tmp_vault.write("gotcha/real-note.md", "# Real Note\nContent.")
 
     handler = VaultHandler()

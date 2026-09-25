@@ -20,7 +20,6 @@ from archiver_rag.watcher import (
     _maybe_redescribe,
 )
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # _get_describe_config — safe-default config reader
 # ──────────────────────────────────────────────────────────────────────────────
@@ -121,7 +120,11 @@ def test_manual_folder_is_not_logged_or_overwritten(tmp_vault, describe_spy, mon
     monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     tmp_vault.write("reference/one.md", "# One")
 
-    from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
+    from archiver_rag.vault.folder_notes import (
+        FolderNote,
+        read_folder_note,
+        write_folder_note,
+    )
 
     write_folder_note(Path(tmp_vault.root), FolderNote(rel_folder="reference", description_terms=["api"], source="manual"))
 
@@ -139,7 +142,11 @@ def test_manual_folder_is_not_logged_or_overwritten(tmp_vault, describe_spy, mon
 
 def test_empty_auto_folder_increments_empty_sweeps(tmp_vault, describe_spy, monkeypatch):
     monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
-    from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
+    from archiver_rag.vault.folder_notes import (
+        FolderNote,
+        read_folder_note,
+        write_folder_note,
+    )
 
     (Path(tmp_vault.root) / "ghost-folder").mkdir()
     write_folder_note(Path(tmp_vault.root), FolderNote(rel_folder="ghost-folder", description_terms=["stale"], source="auto"))
@@ -154,7 +161,11 @@ def test_empty_auto_folder_increments_empty_sweeps(tmp_vault, describe_spy, monk
 
 def test_empty_manual_folder_is_never_touched(tmp_vault, describe_spy, monkeypatch):
     monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
-    from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
+    from archiver_rag.vault.folder_notes import (
+        FolderNote,
+        read_folder_note,
+        write_folder_note,
+    )
 
     (Path(tmp_vault.root) / "reference").mkdir()
     write_folder_note(Path(tmp_vault.root), FolderNote(rel_folder="reference", description_terms=["api"], source="manual"))
@@ -170,8 +181,12 @@ def test_empty_manual_folder_is_never_touched(tmp_vault, describe_spy, monkeypat
 def test_reaching_grace_period_archives_the_folder(tmp_vault, describe_spy, monkeypatch):
     monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
     monkeypatch.setattr("archiver_rag.watcher._get_folder_vacancy_grace_periods", lambda: 3)
-    from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
     from archiver_rag.utils import FOLDER_NOTE_NAME
+    from archiver_rag.vault.folder_notes import (
+        FolderNote,
+        read_folder_note,
+        write_folder_note,
+    )
 
     (Path(tmp_vault.root) / "ghost-folder").mkdir()
     write_folder_note(
@@ -189,7 +204,11 @@ def test_reaching_grace_period_archives_the_folder(tmp_vault, describe_spy, monk
 
 def test_folder_regaining_a_note_resets_empty_sweeps(tmp_vault, describe_spy, monkeypatch):
     monkeypatch.setattr("archiver_rag.watcher._get_describe_config", lambda: (True, 4, 6, 0.5, 1.0, True))
-    from archiver_rag.vault.folder_notes import FolderNote, write_folder_note, read_folder_note
+    from archiver_rag.vault.folder_notes import (
+        FolderNote,
+        read_folder_note,
+        write_folder_note,
+    )
 
     tmp_vault.write("decision/one.md", "# One")
     write_folder_note(

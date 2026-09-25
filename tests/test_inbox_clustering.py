@@ -8,15 +8,13 @@ move_notes (called by maybe_spin_out_clusters) triggers it internally.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from archiver_rag.graph.inbox import (
-    group_inbox_notes,
-    name_cluster,
     _resolve_cluster_folder,
+    group_inbox_notes,
     maybe_spin_out_clusters,
+    name_cluster,
 )
 from archiver_rag.vault.folder_notes import read_folder_note
 
@@ -136,13 +134,13 @@ def test_resolve_cluster_folder_empty_slug_falls_back(tmp_vault):
 def test_spins_out_qualifying_cluster_into_new_described_folder(tmp_vault, monkeypatch):
     monkeypatch.setattr("archiver_rag.core.embedder.embed", _fake_embed_by_group)
 
-    a1 = tmp_vault.write(
+    tmp_vault.write(
         "inbox/alpha-one.md", '---\ntags: ["groupa"]\n---\nAbout groupa things.'
     )
-    a2 = tmp_vault.write(
+    tmp_vault.write(
         "inbox/alpha-two.md", '---\ntags: ["groupa"]\n---\nMore groupa things.'
     )
-    a3 = tmp_vault.write(
+    tmp_vault.write(
         "inbox/alpha-three.md", '---\ntags: ["groupa"]\n---\nEven more groupa things.'
     )
 
@@ -176,13 +174,13 @@ def test_spins_out_qualifying_cluster_into_new_described_folder(tmp_vault, monke
 def test_group_below_min_size_stays_in_inbox(tmp_vault, monkeypatch):
     monkeypatch.setattr("archiver_rag.core.embedder.embed", _fake_embed_by_group)
 
-    a1 = tmp_vault.write(
+    tmp_vault.write(
         "inbox/alpha-one.md", '---\ntags: ["groupa"]\n---\nAbout groupa things.'
     )
-    a2 = tmp_vault.write(
+    tmp_vault.write(
         "inbox/alpha-two.md", '---\ntags: ["groupa"]\n---\nMore groupa things.'
     )
-    b1 = tmp_vault.write(
+    tmp_vault.write(
         "inbox/beta-one.md", '---\ntags: ["groupb"]\n---\nAbout groupb things.'
     )
 
@@ -219,13 +217,13 @@ def test_collision_with_existing_folder_gets_numeric_suffix(tmp_vault, monkeypat
     monkeypatch.setattr("archiver_rag.core.embedder.embed", _fake_embed_by_group)
     (tmp_vault.root / "groupa").mkdir()
 
-    a1 = tmp_vault.write(
+    tmp_vault.write(
         "inbox/alpha-one.md", '---\ntags: ["groupa"]\n---\nAbout groupa things.'
     )
-    a2 = tmp_vault.write(
+    tmp_vault.write(
         "inbox/alpha-two.md", '---\ntags: ["groupa"]\n---\nMore groupa things.'
     )
-    a3 = tmp_vault.write(
+    tmp_vault.write(
         "inbox/alpha-three.md", '---\ntags: ["groupa"]\n---\nEven more groupa things.'
     )
 

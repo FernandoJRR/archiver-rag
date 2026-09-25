@@ -1,6 +1,7 @@
 import json
 import subprocess
 from pathlib import Path
+
 from rich import print
 
 CLAUDE_JSON = Path.home() / ".claude.json"

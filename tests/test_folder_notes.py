@@ -1,18 +1,19 @@
 """Tests for vault/folder_notes.py — FolderNote read/write/discovery."""
 
-import pytest
 from pathlib import Path
+
+import pytest
+
+from archiver_rag.utils import FOLDER_NOTE_NAME
 from archiver_rag.vault.folder_notes import (
     FolderNote,
-    read_folder_note,
-    write_folder_note,
-    described_folders,
-    describable_folders,
     apply_extracted_terms,
     archive_folder_note,
+    describable_folders,
+    described_folders,
+    read_folder_note,
+    write_folder_note,
 )
-from archiver_rag.utils import FOLDER_NOTE_NAME
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers

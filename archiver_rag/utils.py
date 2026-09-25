@@ -1,9 +1,10 @@
 import json
-import yaml
-from pathlib import Path
 from collections import defaultdict
-from archiver_rag.wikilinks import extract_wikilinks
+from pathlib import Path
 
+import yaml
+
+from archiver_rag.wikilinks import extract_wikilinks
 
 # Per-folder description sidecar (see graph/terms.py, vault/folder_notes.py).
 # Visible so it can be read and edited from Obsidian, but never indexed, never

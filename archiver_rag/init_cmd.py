@@ -1,9 +1,10 @@
 import json
-import typer
-import subprocess
-from rich import print
 from pathlib import Path
-from rich.prompt import Prompt, Confirm
+
+import typer
+from rich import print
+from rich.prompt import Confirm, Prompt
+
 from archiver_rag import paths
 from archiver_rag.core.embedder import _is_cached
 

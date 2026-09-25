@@ -1,10 +1,10 @@
-import re
 import json
+import re
 import shutil
 from datetime import date
 from pathlib import Path
-from archiver_rag.utils import get_vault_path, build_link_map, note_stems
 
+from archiver_rag.utils import build_link_map, get_vault_path, note_stems
 
 # Generous enough that real titles are never clipped, far under the 255-byte
 # filesystem limit. A truncated slug makes the filename disagree with the note's
@@ -85,7 +85,10 @@ def log_note(
     # folder — an already-described large folder would otherwise pay the heavier
     # c-TF-IDF+MMR cost on every single call. Never let this break note creation.
     try:
-        from archiver_rag.vault.folder_notes import apply_extracted_terms, read_folder_note
+        from archiver_rag.vault.folder_notes import (
+            apply_extracted_terms,
+            read_folder_note,
+        )
 
         if read_folder_note(vault, type) is None:
             from archiver_rag.graph.terms import extract_terms

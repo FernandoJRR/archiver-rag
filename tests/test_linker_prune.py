@@ -12,7 +12,6 @@ Conservative pruning rules (keep on doubt):
 
 from archiver_rag.graph.linker import _append_links_section
 
-
 # ── backward compatibility: valid_stems=None disables pruning ─────────────────
 
 

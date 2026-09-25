@@ -1,5 +1,6 @@
 from pathlib import Path
-from archiver_rag.utils import get_vault_path, build_link_map
+
+from archiver_rag.utils import build_link_map, get_vault_path
 
 # hub_boost saturates at HUB_BOOST_SATURATION_INCOMING inbound links, capped at
 # HUB_BOOST_MAX. Originally saturated at 5 — calibrated when auto_link's per-run

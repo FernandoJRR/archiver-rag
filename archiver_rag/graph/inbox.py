@@ -29,9 +29,9 @@ from pathlib import Path
 
 import numpy as np
 
-from archiver_rag.utils import extract_frontmatter, is_indexable_note
 from archiver_rag.graph import centroids as _centroids_mod
-from archiver_rag.graph.placement import note_identity_text, note_content_text
+from archiver_rag.graph.placement import note_content_text, note_identity_text
+from archiver_rag.utils import extract_frontmatter, is_indexable_note
 
 
 def _note_vectors(

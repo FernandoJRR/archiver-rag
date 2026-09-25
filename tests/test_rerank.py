@@ -13,7 +13,11 @@ query_note=None (skips the link-map lookups entirely).
 
 from __future__ import annotations
 
-from archiver_rag.graph.rerank import HUB_BOOST_MAX, HUB_BOOST_SATURATION_INCOMING, rerank
+from archiver_rag.graph.rerank import (
+    HUB_BOOST_MAX,
+    HUB_BOOST_SATURATION_INCOMING,
+    rerank,
+)
 
 
 def _rerank_one(incoming_count: int, dist: float = 0.2, vault_path: str = "/tmp/unused"):

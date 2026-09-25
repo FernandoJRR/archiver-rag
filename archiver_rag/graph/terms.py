@@ -23,7 +23,11 @@ from pathlib import Path
 
 import numpy as np
 
-from archiver_rag.utils import extract_frontmatter, is_indexable_note, FOLDER_NOTE_NAME, strip_related_section
+from archiver_rag.utils import (
+    extract_frontmatter,
+    is_indexable_note,
+    strip_related_section,
+)
 from archiver_rag.vault.folder_notes import describable_folders
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -148,7 +152,7 @@ def _mmr(
         else:
             sel_vecs = vecs[selected_indices]
 
-            def mmr_score(i: int) -> float:
+            def mmr_score(i: int, sel_vecs=sel_vecs) -> float:
                 rel = scores.get(candidates[i], 0.0)
                 sim = float(np.max(sel_vecs @ vecs[i]))
                 return mmr_lambda * rel - (1 - mmr_lambda) * sim

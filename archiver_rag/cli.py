@@ -1,5 +1,6 @@
-import typer
 from pathlib import Path
+
+import typer
 from rich import print
 
 app = typer.Typer(name="archiver-rag", help="Semantic RAG for Obsidian vaults + MCP")
@@ -162,6 +163,7 @@ def status(
     """Service liveness, watcher activity, index drift, and effective config"""
     import builtins
     import json as _json
+
     from archiver_rag.report import compose_status, render_status
 
     report = compose_status()
@@ -230,9 +232,9 @@ def prune(
 @app.command()
 def search(query: str = typer.Argument(..., help="Search query")):
     """Search the vault index directly"""
-    from archiver_rag.core.embedder import embed
+
     from archiver_rag.core.db import collection
-    import json
+    from archiver_rag.core.embedder import embed
 
     query_vector = embed([query])[0]
     results = collection.query(
@@ -261,6 +263,7 @@ def health(
     """Index-vs-disk drift plus vault health — orphans, broken links, tags"""
     import builtins
     import json as _json
+
     from archiver_rag.report import compose_health, render_health
 
     report = compose_health()
@@ -281,10 +284,11 @@ def logs():
 @app.command()
 def uninstall():
     """Remove all archiver-rag data, service, and MCP registration"""
-    from rich.prompt import Confirm
     import json
     import subprocess
     import sys
+
+    from rich.prompt import Confirm
 
     confirm = Confirm.ask(
         "[red]This will remove all config, vectors, and service registration. Continue?[/red]",
@@ -323,6 +327,7 @@ def uninstall():
 
     # 3. Remove config/data/cache directories (and any pre-XDG leftovers)
     import shutil
+
     from archiver_rag import paths
 
     for d in (paths.config_dir(), paths.data_dir(), paths.cache_dir(), paths.legacy_dir()):
@@ -347,6 +352,7 @@ def log_cmd(
 ):
     """Create a knowledge note (opens editor for content)"""
     import click
+
     from archiver_rag.vault.notes import log_note as _log_note
 
     content = click.edit("") or ""
@@ -372,7 +378,7 @@ def delete_cmd(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
     """Move notes to .trash/ and sweep inbound wikilinks (recoverable)"""
-    from archiver_rag.utils import get_vault_path, build_link_map
+    from archiver_rag.utils import build_link_map, get_vault_path
     from archiver_rag.vault.notes import delete_notes as _delete_notes
 
     vault = Path(get_vault_path())
@@ -453,8 +459,10 @@ def cluster(
     dry-run output carefully before ever passing --apply.
     """
     from archiver_rag.graph.clustering import (
-        cluster_vault as _cluster_vault,
         apply_clusters,
+    )
+    from archiver_rag.graph.clustering import (
+        cluster_vault as _cluster_vault,
     )
 
     result = _cluster_vault(min_cluster_size=min_size)
@@ -552,7 +560,7 @@ def place(
 
         print(f"\n[bold]Placement report — {len(rows)} notes[/bold]\n")
         moves_needed = [r for r in rows if r["would_move"]]
-        stays = [r for r in rows if not r["would_move"]]
+        [r for r in rows if not r["would_move"]]
 
         if moves_needed:
             print(f"[yellow]Would move ({len(moves_needed)}):[/yellow]")
@@ -563,13 +571,13 @@ def place(
         else:
             print("[green]All notes are already in their suggested folder.[/green]")
 
-        print(f"\n[bold]Current distribution:[/bold]")
+        print("\n[bold]Current distribution:[/bold]")
         for folder, count in current_dist.most_common():
             pct = 100 * count // len(rows)
             print(f"  {folder}: {count} ({pct}%)")
 
         if moves_needed:
-            print(f"\n[bold]Projected distribution (after moves):[/bold]")
+            print("\n[bold]Projected distribution (after moves):[/bold]")
             for folder, count in suggested_dist.most_common():
                 pct = 100 * count // len(rows)
                 print(f"  {folder}: {count} ({pct}%)")
@@ -648,15 +656,16 @@ def describe_cmd(
     Generates descriptions for folders that have none. Idempotent — existing
     source:manual descriptions are never overwritten by automatic runs.
     """
+    from datetime import date
+
+    from archiver_rag.graph.terms import extract_terms_all
     from archiver_rag.utils import get_vault_path, load_config
     from archiver_rag.vault.folder_notes import (
+        FolderNote,
         describable_folders,
         read_folder_note,
         write_folder_note,
-        FolderNote,
     )
-    from archiver_rag.graph.terms import extract_terms_all, extract_terms
-    from datetime import date
 
     vault = Path(get_vault_path())
     cfg = load_config()
@@ -791,7 +800,7 @@ def relink(
     window as the rewrite, before the watcher restarts, so nothing observes a stale
     index in between.
     """
-    from archiver_rag.utils import get_vault_path, is_indexable_note, note_stems
+    from archiver_rag import service
     from archiver_rag.graph.linker import (
         _append_links_section,
         _find_related_section,
@@ -799,8 +808,8 @@ def relink(
         _get_link_margin_config,
         select_related_candidates,
     )
+    from archiver_rag.utils import get_vault_path, is_indexable_note, note_stems
     from archiver_rag.wikilinks import iter_wikilinks
-    from archiver_rag import service
 
     vault = Path(get_vault_path())
     notes = sorted(f for f in vault.rglob("*.md") if is_indexable_note(f))
@@ -932,6 +941,7 @@ def config_cmd(
 ):
     """Update archiver-rag configuration"""
     import json
+
     from archiver_rag import paths
     from archiver_rag.init_cmd import load_config
 

@@ -6,8 +6,6 @@ Isolated from delete_notes — tests the sweeping logic directly.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 
 def _sweep(tmp_vault, stems: list[str]):
     from archiver_rag.vault.notes import sweep_dead_links
@@ -47,7 +45,7 @@ def test_trash_note_not_valid(tmp_vault):
     (tmp_vault.root / ".trash").mkdir()
     (tmp_vault.root / ".trash" / "gone.md").write_text("# Gone", encoding="utf-8")
     tmp_vault.write("linker.md", "# Linker\n\n## Related\n- [[gone]]")
-    result = _sweep(tmp_vault, ["gone"])
+    _sweep(tmp_vault, ["gone"])
     content = (tmp_vault.root / "linker.md").read_text()
     assert "[[gone]]" not in content
 
@@ -70,7 +68,7 @@ def test_noop_when_nothing_to_prune(tmp_vault):
 def test_multiple_stems_swept(tmp_vault):
     tmp_vault.write("linker.md", "# L\n\n## Related\n- [[a]]\n- [[b]]")
     # a and b are already gone (not on disk)
-    result = _sweep(tmp_vault, ["a", "b"])
+    _sweep(tmp_vault, ["a", "b"])
     content = (tmp_vault.root / "linker.md").read_text()
     assert "[[a]]" not in content
     assert "[[b]]" not in content

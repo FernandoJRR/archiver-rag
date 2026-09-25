@@ -26,7 +26,6 @@ import pytest
 
 from archiver_rag.watcher import VaultHandler
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Shared fixtures
 # ──────────────────────────────────────────────────────────────────────────────
@@ -265,8 +264,8 @@ def test_inbox_folder_note_never_overwritten_by_redescribe(tmp_vault, monkeypatc
     should exist in _maybe_redescribe itself for this."""
     monkeypatch.setattr("archiver_rag.watcher._last_redescribed", {})
 
-    from archiver_rag.watcher import _ensure_inbox_locked, _maybe_redescribe
     from archiver_rag.vault.folder_notes import read_folder_note
+    from archiver_rag.watcher import _ensure_inbox_locked, _maybe_redescribe
 
     vault = Path(tmp_vault.root)
     tmp_vault.write("inbox/lonely.md", "---\ntags: [something]\n---\n# Lonely")

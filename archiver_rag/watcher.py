@@ -1,16 +1,22 @@
-from pathlib import Path
-import time
-import sys
 import signal
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
-from archiver_rag.core.ingest import ingest_file
-from archiver_rag.core.db import collection
-from archiver_rag.utils import get_vault_path, is_hidden_path, is_folder_note, is_indexable_note, log as _log
-import os
+import sys
+import time
+from pathlib import Path
 
-from archiver_rag.graph.linker import auto_link
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
+
 from archiver_rag import runtime
+from archiver_rag.core.db import collection
+from archiver_rag.core.ingest import ingest_file
+from archiver_rag.graph.linker import auto_link
+from archiver_rag.utils import (
+    get_vault_path,
+    is_folder_note,
+    is_hidden_path,
+    is_indexable_note,
+)
+from archiver_rag.utils import log as _log
 
 # How long to wait for a "deleted" file to reappear before believing the delete.
 DELETE_SETTLE_SECONDS = 1.0
@@ -59,6 +65,7 @@ def _get_cluster_config() -> tuple[bool, int, float, bool]:
     """
     try:
         import json
+
         from archiver_rag import paths
 
         config = json.loads(paths.config_path().read_text())
@@ -83,6 +90,7 @@ def _get_placement_weights_config() -> tuple[float, float, float]:
     """
     try:
         import json
+
         from archiver_rag import paths
 
         config = json.loads(paths.config_path().read_text())
@@ -108,6 +116,7 @@ def _get_describe_config() -> tuple[bool, int, int, float, float, bool]:
     """
     try:
         import json
+
         from archiver_rag import paths
 
         config = json.loads(paths.config_path().read_text())
@@ -132,6 +141,7 @@ def _get_folder_vacancy_grace_periods() -> int:
     """
     try:
         import json
+
         from archiver_rag import paths
 
         config = json.loads(paths.config_path().read_text())
@@ -158,6 +168,7 @@ def _get_inbox_config() -> tuple[bool, int, float]:
     """
     try:
         import json
+
         from archiver_rag import paths
 
         config = json.loads(paths.config_path().read_text())
@@ -186,7 +197,11 @@ def _ensure_inbox_locked(vault: Path) -> None:
     would start competing as an ordinary placement destination: backwards, since
     inbox is a staging net, not a topical folder.
     """
-    from archiver_rag.vault.folder_notes import FolderNote, read_folder_note, write_folder_note
+    from archiver_rag.vault.folder_notes import (
+        FolderNote,
+        read_folder_note,
+        write_folder_note,
+    )
 
     if read_folder_note(vault, "inbox") is None:
         write_folder_note(
@@ -665,8 +680,6 @@ class VaultHandler(FileSystemEventHandler):
 def watch(vault_path: str):
     """Called by the service via `archiver-rag _watch`"""
     import time
-    import signal
-    from watchdog.observers import Observer
 
     handler = VaultHandler()
     observer = Observer()

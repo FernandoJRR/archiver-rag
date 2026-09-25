@@ -20,8 +20,8 @@ import threading
 import chromadb
 import pytest
 
-from archiver_rag import paths
 import archiver_rag.core.db as _db
+from archiver_rag import paths
 from archiver_rag.core.db import _LazyCollection
 
 

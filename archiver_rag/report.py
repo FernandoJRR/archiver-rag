@@ -19,7 +19,6 @@ from pathlib import Path
 
 from rich import print
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Formatting helpers
 # ──────────────────────────────────────────────────────────────────────────────
@@ -73,7 +72,7 @@ def _sample(items: list, limit: int = 5) -> str:
 def compose_status() -> dict:
     from archiver_rag import runtime
     from archiver_rag.core.index_stats import index_stats
-    from archiver_rag.service import http_state, service_state
+    from archiver_rag.service import service_state
     from archiver_rag.utils import load_config
 
     # utils.load_config (returns {}) — deliberately not init_cmd.load_config, which
@@ -240,7 +239,7 @@ def render_status(report: dict) -> None:
     print("\n[bold]MCP HTTP[/bold]")
     if hst.get("running"):
         print(f"  [green]✅ Running[/green] — PID {hst.get('pid')} · {http_rep.get('url') or '—'}")
-        print(f"  [dim]stop: archiver-rag stop http[/dim]")
+        print("  [dim]stop: archiver-rag stop http[/dim]")
     elif hst.get("loaded"):
         exit_status = hst.get("last_exit_status")
         print(
@@ -249,9 +248,9 @@ def render_status(report: dict) -> None:
         )
         print("  [dim]KeepAlive may be restart-looping — check the error log[/dim]")
     elif not hst.get("installed"):
-        print(f"  [dim]not installed[/dim] — [bold]archiver-rag start http[/bold] to detach")
+        print("  [dim]not installed[/dim] — [bold]archiver-rag start http[/bold] to detach")
     else:
-        print(f"  [red]❌ Not running[/red] — run [bold]archiver-rag start http[/bold]")
+        print("  [red]❌ Not running[/red] — run [bold]archiver-rag start http[/bold]")
     if hst.get("error"):
         print(f"  [dim]{hst['error']}[/dim]")
     if http_rep.get("error"):

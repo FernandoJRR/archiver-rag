@@ -1,13 +1,13 @@
 """Verify _folder.md is excluded from every note-enumeration site."""
 
-import pytest
 from pathlib import Path
+
 from archiver_rag.utils import (
     FOLDER_NOTE_NAME,
-    note_stems,
     build_link_map,
-    is_indexable_note,
     find_note,
+    is_indexable_note,
+    note_stems,
 )
 
 # ──────────────────────────────────────────────────────────────────────────────

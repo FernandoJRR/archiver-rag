@@ -1,12 +1,13 @@
 import re
 from pathlib import Path
-from archiver_rag.core.embedder import embed
+
 from archiver_rag.core.db import collection
+from archiver_rag.core.embedder import embed
 from archiver_rag.utils import (
-    get_vault_path,
-    note_stems,
-    is_indexable_note,
     extract_frontmatter,
+    get_vault_path,
+    is_indexable_note,
+    note_stems,
     strip_related_section,
 )
 from archiver_rag.wikilinks import extract_wikilinks
@@ -130,7 +131,7 @@ def _append_links_section(
             existing_targets.add(wl.target)
 
         # Only append links whose target isn't already present
-        additions = [l for l in new_links if l not in existing_targets]
+        additions = [link for link in new_links if link not in existing_targets]
 
         # No-op: nothing pruned AND nothing added — return the original object so
         # auto_link's identity check skips the disk write.

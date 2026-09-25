@@ -8,15 +8,13 @@ import numpy as np
 import pytest
 
 from archiver_rag.graph.placement import (
-    note_identity_text,
-    note_content_text,
-    _type_folder,
-    suggest_folder,
     _folder_prefix,
     _matches_prefix,
+    _type_folder,
+    note_content_text,
+    note_identity_text,
+    suggest_folder,
 )
-from archiver_rag.vault.folder_notes import FolderNote, write_folder_note
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -210,6 +208,7 @@ def test_suggest_folder_returns_best_above_threshold(tmp_path, monkeypatch):
 def test_suggest_folder_below_threshold_uses_type_fallback(tmp_path, monkeypatch):
     vault = make_vault(tmp_path)
     import numpy as np
+
     import archiver_rag.graph.placement as _pm
 
     low_sim_vec = np.array([0.0, 0.0, 1.0], dtype=np.float32)
@@ -232,6 +231,7 @@ def test_suggest_folder_below_threshold_uses_type_fallback(tmp_path, monkeypatch
 def test_suggest_folder_type_fallback_disabled_returns_none(tmp_path, monkeypatch):
     vault = make_vault(tmp_path)
     import numpy as np
+
     import archiver_rag.graph.placement as _pm
 
     monkeypatch.setattr(_pm._centroids_mod, "folder_centroids",
@@ -268,6 +268,7 @@ def test_suggest_folder_no_descriptions_falls_back_to_type(tmp_path, monkeypatch
 def test_suggest_folder_scores_returned(tmp_path, monkeypatch):
     vault = make_vault(tmp_path)
     import numpy as np
+
     import archiver_rag.graph.placement as _pm
 
     monkeypatch.setattr(_pm._centroids_mod, "folder_centroids", lambda v: {
@@ -297,6 +298,7 @@ def test_suggest_folder_weights_identity_and_content_separately(tmp_path, monkey
     w_identity/w_content formula, not just 'some average'."""
     vault = make_vault(tmp_path)
     import numpy as np
+
     import archiver_rag.graph.placement as _pm
 
     gotcha_vec = np.array([1.0, 0.0, 0.0], dtype=np.float32)
@@ -334,6 +336,7 @@ def test_suggest_folder_falls_back_to_identity_only_when_body_empty(tmp_path, mo
     a single text, not two."""
     vault = make_vault(tmp_path)
     import numpy as np
+
     import archiver_rag.graph.placement as _pm
 
     monkeypatch.setattr(

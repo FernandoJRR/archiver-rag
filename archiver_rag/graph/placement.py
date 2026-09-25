@@ -12,9 +12,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from archiver_rag.utils import extract_frontmatter, strip_related_section
 from archiver_rag.graph import centroids as _centroids_mod
-
+from archiver_rag.utils import extract_frontmatter, strip_related_section
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Note text to embed — two separate channels (Fase B, spec fortalecer-dominios)

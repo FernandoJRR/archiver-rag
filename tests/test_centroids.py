@@ -2,25 +2,23 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from archiver_rag.vault.folder_notes import FolderNote, write_folder_note
 from archiver_rag.graph.centroids import (
-    description_text,
-    fingerprint,
+    _load_cache,
     _unit,
     cosine,
-    weighted_cosine,
+    description_text,
+    drop_centroid,
+    fingerprint,
     folder_centroids,
     refresh_centroid,
-    drop_centroid,
-    _load_cache,
+    weighted_cosine,
 )
-
+from archiver_rag.vault.folder_notes import FolderNote, write_folder_note
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -176,7 +174,6 @@ def test_folder_centroids_reuses_cache_on_second_call(tmp_path, monkeypatch):
     _make_sidecar(vault, "gotcha", ["watcher"])
 
     embed_calls = []
-    original_embed = None
 
     def _patched_embed(texts):
         embed_calls.append(texts)
@@ -197,7 +194,7 @@ def test_folder_centroids_reuses_cache_on_second_call(tmp_path, monkeypatch):
 def test_folder_centroids_reembeds_when_terms_change(tmp_path, monkeypatch):
     """Editing description_terms must change the fingerprint and force a new embedding."""
     vault = make_vault(tmp_path)
-    cache_file = _redirect_cache(monkeypatch, tmp_path)
+    _redirect_cache(monkeypatch, tmp_path)
 
     _make_sidecar(vault, "gotcha", ["watcher"])
     v1 = folder_centroids(vault)["gotcha"].copy()
@@ -225,7 +222,7 @@ def test_folder_centroids_corrupt_cache_falls_back_to_embed(tmp_path, monkeypatc
 def test_folder_centroids_stale_entry_removed_from_cache(tmp_path, monkeypatch):
     """Folders that no longer have a sidecar must be evicted from the cache."""
     vault = make_vault(tmp_path)
-    cache_file = _redirect_cache(monkeypatch, tmp_path)
+    _redirect_cache(monkeypatch, tmp_path)
 
     _make_sidecar(vault, "gotcha", ["watcher"])
     folder_centroids(vault)  # populate cache

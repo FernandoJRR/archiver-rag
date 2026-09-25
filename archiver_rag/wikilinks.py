@@ -60,7 +60,6 @@ def code_spans(text: str) -> list[Span]:
 
     # ── fenced code ────────────────────────────────────────────────────────────
     # Walk fence markers; pair openers with the next compatible closer.
-    pos = fm_end
     i = 0
     fences = list(_FENCE_RE.finditer(text))
     while i < len(fences):
@@ -95,7 +94,6 @@ def code_spans(text: str) -> list[Span]:
     # A run of N backticks opens; the next run of exactly N backticks closes.
     # We scan the text outside frontmatter and outside already-found fenced regions.
     backtick_re = re.compile(r"`+")
-    pos = fm_end
     for bm in backtick_re.finditer(text, fm_end):
         start = bm.start()
         # Skip if inside a fenced span already found.
@@ -137,7 +135,7 @@ def iter_wikilinks(
     *,
     skip_code: bool = True,
     masked: list[Span] | None = None,
-) -> "Iterator[WikiLink]":
+) -> Iterator[WikiLink]:
     """
     Yield WikiLink objects for every wikilink in text.
 

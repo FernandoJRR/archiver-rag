@@ -8,7 +8,11 @@ leaving the folder orphaned until auto_describe (if even on) eventually catches 
 
 from __future__ import annotations
 
-from archiver_rag.vault.folder_notes import FolderNote, read_folder_note, write_folder_note
+from archiver_rag.vault.folder_notes import (
+    FolderNote,
+    read_folder_note,
+    write_folder_note,
+)
 from archiver_rag.vault.notes import log_note
 
 

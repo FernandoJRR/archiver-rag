@@ -13,7 +13,7 @@ import json
 import pytest
 from typer.testing import CliRunner
 
-from archiver_rag.cli import app, _is_loopback
+from archiver_rag.cli import _is_loopback, app
 from archiver_rag.mcp import http as mcp_http
 
 runner = CliRunner()
@@ -77,7 +77,7 @@ def test_loopback_bind_does_not_warn(spy_serve):
 
 def test_corrupt_config_falls_back_to_loopback(spy_serve, monkeypatch):
     """load_config() returns {} on error — it must not leave host unset or wide open."""
-    monkeypatch.setattr("archiver_rag.utils.load_config", lambda: {})
+    monkeypatch.setattr("archiver_rag.utils.load_config", dict)
 
     runner.invoke(app, ["serve", "--transport", "http"])
     assert spy_serve["host"] == "127.0.0.1"

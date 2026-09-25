@@ -6,9 +6,7 @@ before the rewrite. After the fix they should XPASS and the markers are removed.
 Tests without xfail document currently-correct behaviour that must not regress.
 """
 
-import pytest
 from archiver_rag.graph.linker import _append_links_section
-
 
 # ── currently correct behaviour (must not regress) ────────────────────────────
 

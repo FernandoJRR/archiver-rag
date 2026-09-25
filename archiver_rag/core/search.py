@@ -1,5 +1,5 @@
-from archiver_rag.core.embedder import embed
 from archiver_rag.core.db import collection
+from archiver_rag.core.embedder import embed
 from archiver_rag.graph.rerank import rerank
 
 

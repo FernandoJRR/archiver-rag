@@ -5,15 +5,12 @@ Covers the cases that matter for correctness and the surprising edge cases that
 would otherwise be "fixed" back to the broken state by a future reader.
 """
 
-import pytest
 from archiver_rag.wikilinks import (
-    WikiLink,
-    frontmatter_span,
     code_spans,
-    iter_wikilinks,
     extract_wikilinks,
+    frontmatter_span,
+    iter_wikilinks,
 )
-
 
 # ── frontmatter_span ──────────────────────────────────────────────────────────
 

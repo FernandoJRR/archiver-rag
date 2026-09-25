@@ -20,9 +20,9 @@ for tests that specifically exercise archiver_rag.paths.ensure_migrated().
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
+import pytest
 
 _MODULES_WITH_VAULT = [
     "archiver_rag.vault.health",

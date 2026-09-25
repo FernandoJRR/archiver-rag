@@ -66,7 +66,7 @@ Changelog = "https://github.com/FernandoJRR/archiver-rag/blob/main/CHANGELOG.md"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
-    "ruff>=0.16.0",
+    "ruff>=0.16,<0.17",
 ]
 
 [project.scripts]
@@ -81,3 +81,12 @@ markers = [
     "vault: requires real vault (opt-in, set ARCHIVER_RAG_VAULT)",
     "slow: loads the sentence-transformers model (embed() calls)",
 ]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+# Explicit rule set so CI results don't drift with ruff's defaults.
+select = ["E4", "E7", "E9", "F", "I", "B", "UP", "PIE", "ASYNC", "PLE", "RUF100"]
+# B008: typer declares options as call defaults. B905: zip() lengths are known equal.
+ignore = ["B008", "B905"]

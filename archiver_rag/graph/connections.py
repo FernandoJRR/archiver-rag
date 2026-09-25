@@ -1,5 +1,6 @@
 from pathlib import Path
-from archiver_rag.utils import get_vault_path, build_link_map
+
+from archiver_rag.utils import build_link_map, get_vault_path
 
 
 def get_connections(note: str, depth: int = 1) -> dict:

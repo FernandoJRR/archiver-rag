@@ -1,15 +1,15 @@
-from pathlib import Path
-import re
 import os
+import re
 import uuid
+from pathlib import Path
 
-from archiver_rag.core.embedder import embed
 from archiver_rag.core.chunker import chunk
 from archiver_rag.core.db import collection
+from archiver_rag.core.embedder import embed
 from archiver_rag.utils import (
-    get_vault_path,
     build_link_map,
     extract_frontmatter,
+    get_vault_path,
     is_indexable_note,
     log,
     strip_related_section,
@@ -209,4 +209,4 @@ if __name__ == "__main__":
     vault_path = sys.argv[1]
     print(f"Ingesting vault on: {vault_path}")
     ingest_vault(vault_path)
-    print(f"Finished!")
+    print("Finished!")

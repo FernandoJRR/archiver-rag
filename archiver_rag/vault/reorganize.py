@@ -1,6 +1,7 @@
 import re
 import shutil
 from pathlib import Path
+
 from archiver_rag.utils import get_vault_path, is_indexable_note
 
 

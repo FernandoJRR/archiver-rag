@@ -128,6 +128,7 @@ def apply_extracted_terms(
         }
     """
     from datetime import date
+
     from archiver_rag.graph.terms import alpha_for, blend_terms
 
     existing = read_folder_note(vault, rel_folder)

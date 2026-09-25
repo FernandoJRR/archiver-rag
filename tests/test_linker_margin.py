@@ -19,7 +19,6 @@ import pytest
 
 from archiver_rag.graph.linker import _append_links_section, select_related_candidates
 
-
 # ── _append_links_section: keep_targets rebuild trimming ──────────────────────
 
 

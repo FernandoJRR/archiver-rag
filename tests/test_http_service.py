@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import socket
 import subprocess
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -360,7 +360,7 @@ def test_daemon_endpoint_reads_linux_exec_start(monkeypatch, tmp_path):
     monkeypatch.setattr(service, "HTTP", defn)
     defn.unit_path.write_text(
         "[Service]\n"
-        f"ExecStart=/fake/bin/archiver-rag serve --transport http --port 9099\n",
+        "ExecStart=/fake/bin/archiver-rag serve --transport http --port 9099\n",
         encoding="utf-8",
     )
 

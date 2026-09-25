@@ -466,7 +466,7 @@ async def test_notifier_log_and_progress_reach_the_session():
         loop,
         "search_vault",
         request_id=7,
-        progress_token="tok",  # noqa: S106
+        progress_token="tok",
     )
 
     notifier.log("hello")
