@@ -7,6 +7,7 @@ from archiver_rag.utils import (
     note_stems,
     build_link_map,
     is_indexable_note,
+    find_note,
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -112,3 +113,26 @@ def test_vault_status_excludes_folder_note(tmp_path, monkeypatch):
     status = health.vault_status()
 
     assert status["structure"]["total_notes"] == 1  # my-note.md only
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# find_note — stem lookup must skip hidden dirs and sidecars
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_find_note_skips_trashed_duplicate(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / ".trash").mkdir(parents=True)
+    (vault / "decision").mkdir()
+    (vault / ".trash" / "my-note.md").write_text("old", encoding="utf-8")
+    (vault / "decision" / "my-note.md").write_text("live", encoding="utf-8")
+
+    assert find_note(vault, "my-note") == vault / "decision" / "my-note.md"
+
+
+def test_find_note_returns_none_for_only_hidden_or_sidecar(tmp_path):
+    vault = make_populated_vault(tmp_path)
+    (vault / ".trash").mkdir()
+    (vault / ".trash" / "gone.md").write_text("x", encoding="utf-8")
+
+    assert find_note(vault, "gone.md") is None
+    assert find_note(vault, FOLDER_NOTE_NAME) is None

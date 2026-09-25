@@ -4,7 +4,7 @@ Driven in-process through httpx's ASGITransport, so nothing binds a port and no 
 subprocess is spawned. The point of these tests is that the HTTP surface exposes the
 *same* server object as stdio — StreamableHTTPSessionManager wraps the existing
 low-level `Server`, so a second, drifting definition of the tools should be impossible
-by construction, and `tools/list` returning the real seven is what pins that.
+by construction, and `tools/list` returning the real six is what pins that.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ async def test_initialize_handshake():
     assert result["serverInfo"]["name"] == "obsidian-rag"
 
 
-async def test_tools_list_exposes_the_same_seven_tools():
+async def test_tools_list_exposes_the_same_six_tools():
     app = build_app()
     async with app.router.lifespan_context(app), await _client(app) as client:
         await _rpc(client, INIT)
@@ -80,8 +80,7 @@ async def test_tools_list_exposes_the_same_seven_tools():
         "vault_status",
         "move_notes",
         "log_note",
-        "cluster_vault",
-        "cluster_note",
+        "suggest_folder",
         "get_connections",
     }
 

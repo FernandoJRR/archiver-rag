@@ -1,7 +1,6 @@
 import asyncio
 import json
 import threading
-from pathlib import Path
 
 import anyio.to_thread
 from mcp.server import Server
@@ -128,31 +127,17 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="cluster_vault",
-            description="Analyze wikilink structure and suggest folder groupings using label propagation. Set apply=true to move files.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "min_cluster_size": {
-                        "type": "integer",
-                        "description": "Minimum notes per cluster. Default 2.",
-                        "default": 2,
-                    },
-                    "apply": {
-                        "type": "boolean",
-                        "description": "Move files automatically. Default false.",
-                        "default": False,
-                    },
-                },
-            },
-        ),
-        Tool(
-            name="cluster_note",
+            name="suggest_folder",
             description=(
-                "Suggest a folder for a single note using semantic similarity against folder descriptions. "
-                "Returns suggested_folder (primary, semantic), similarity score, reason "
-                "('semantic' | 'type' | 'none'), and neighbor_vote (secondary wikilink-based vote for reference). "
-                "Set apply=true to move the note to the semantic suggestion immediately."
+                "Suggest a folder for a single note. Suggestion only — it never moves "
+                "anything; use move_notes to act on the result. Primary signal is "
+                "cosine similarity against declared folder descriptions (_folder.md), "
+                "falling back to the note's frontmatter type: field, same config "
+                "(placement_similarity_threshold, type_fallback, placement_weights, "
+                "name_prefix_bonus) the CLI 'place' command and the watcher use. "
+                "Returns suggested_folder, similarity, reason ('semantic' | 'type' | "
+                "'none'), scores (all folder similarities), and neighbor_vote (a "
+                "secondary, informational wikilink-based vote)."
             ),
             inputSchema={
                 "type": "object",
@@ -160,11 +145,6 @@ async def list_tools() -> list[Tool]:
                     "note": {
                         "type": "string",
                         "description": "Note filename e.g. 'AuditTrail.md'",
-                    },
-                    "apply": {
-                        "type": "boolean",
-                        "description": "Move the note automatically. Default false.",
-                        "default": False,
                     },
                 },
                 "required": ["note"],
@@ -200,16 +180,16 @@ async def list_tools() -> list[Tool]:
 
 
 # Tools that read-modify-write files in the vault. move_notes rewrites [[wikilinks]]
-# across every note, and log_note / cluster_* mutate on disk — two of those running
+# across every note, and log_note mutates on disk — two of those running
 # concurrently would interleave rewrites and lose edits. This is a correctness lock, not
 # a performance tweak: under stdio the transport serialized requests so it was
 # unreachable, but the HTTP transport can have several calls in flight at once. Reads
-# (search_vault, vault_status, get_connections) stay parallel.
+# (search_vault, vault_status, get_connections, suggest_folder) stay parallel.
 #
 # Scope is this process only. The watcher runs separately and is unaffected — that
 # cross-process story is exactly as it was before HTTP existed.
 _VAULT_WRITE_LOCK = threading.Lock()
-_MUTATING_TOOLS = {"move_notes", "log_note", "cluster_vault", "cluster_note"}
+_MUTATING_TOOLS = {"move_notes", "log_note"}
 
 
 # ── Server→client status notifications ──────────────────────────────────────
@@ -438,73 +418,19 @@ def _call(name: str, arguments: dict, notify=_NULL_NOTIFIER) -> list[TextContent
         )
         notify.log(f"created {result.get('created', '')}")
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
-    elif name == "cluster_vault":
-        from archiver_rag.graph.clustering import apply_clusters
-        from archiver_rag.graph.clustering import cluster_vault as _cv
-
-        result = _cv(min_cluster_size=int(arguments.get("min_cluster_size", 2)))
-        if arguments.get("apply") and result["clusters"]:
-            notify.log(f"analyzing {result['total_notes']} notes")
-            if notify.active:
-                # Same move-building rule as graph.clustering.apply_clusters, split
-                # per move for live progress (see the move_notes branch). Duplicated
-                # here — on the notifier-active path only — because apply_clusters
-                # offers no per-move hook and must stay transport-agnostic.
-                planned = []
-                for cluster in result["clusters"]:
-                    for note_path in cluster["notes"]:
-                        if Path(note_path).parent.name == cluster["suggested_folder"]:
-                            continue
-                        planned.append(
-                            (
-                                note_path,
-                                f"{cluster['suggested_folder']}/{Path(note_path).name}",
-                            )
-                        )
-                result["moves"] = []
-                for i, (src, dst) in enumerate(planned, 1):
-                    result["moves"].append(
-                        move_notes([{"source": src, "destination": dst}])
-                    )
-                    notify.progress(i, len(planned), f"moved {i}/{len(planned)}")
-            else:
-                result["moves"] = apply_clusters(result["clusters"])
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
-    elif name == "cluster_note":
-        from archiver_rag.graph.clustering import cluster_note as _cn
+    elif name == "suggest_folder":
+        from archiver_rag.graph.clustering import cluster_note
+        from archiver_rag.graph.placement import resolve_placement_config
 
         notify.log(f"placing '{arguments['note']}'")
-        before_folder = _note_folder(arguments["note"])
-        result = _cn(arguments["note"], apply=bool(arguments.get("apply", False)))
-        suggested = result.get("suggested_folder")
-        if arguments.get("apply") and suggested:
-            # A move only happened if the note is in the suggested folder now and
-            # was not there before — cluster_note's internal move_notes call is a
-            # no-op failure when the note already sits in its suggested folder.
-            after_folder = _note_folder(arguments["note"])
-            if after_folder == suggested and before_folder != suggested:
-                notify.progress(1, 1, f"moved to {suggested}")
-                notify.log(f"moved {arguments['note']} → {suggested}")
+        # Same config resolution as cli.py::place, so the tool and the CLI agree.
+        result = cluster_note(arguments["note"], **resolve_placement_config())
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
     elif name == "get_connections":
         result = get_connections(arguments["note"], arguments.get("depth", 1))
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
     else:
         raise ValueError(f"Unknown tool: {name}")
-
-
-def _note_folder(note_name: str) -> str | None:
-    """Vault-relative folder the note currently sits in (None if not found) — the
-    before/after moved check for cluster_note. cluster_note performs its move
-    internally and does not report whether it happened, so verify on disk
-    (full vault-relative folder compare, since suggested_folder can be a nested
-    folder path)."""
-    vault = Path(utils.get_vault_path())
-    stem = Path(note_name).stem
-    found = list(vault.rglob(f"{stem}.md"))
-    if not found:
-        return None
-    return str(found[0].parent.relative_to(vault))
 
 
 async def main():

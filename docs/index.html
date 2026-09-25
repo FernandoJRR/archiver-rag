@@ -806,7 +806,7 @@
   <div class="container">
     <div class="reveal">
       <p class="acc">Tools exposed to any MCP agent</p>
-      <h2>Seven tools. Any agent.</h2>
+      <h2>Six tools. Any agent.</h2>
       <p class="lede" style="margin-bottom:2.5rem;">Every capability is a discrete MCP tool — discoverable, composable, and callable from any agent that speaks stdio MCP.</p>
     </div>
     <div class="reveal">
@@ -846,13 +846,8 @@
           </tr>
           <tr>
             <td class="ledger-num">006</td>
-            <td class="ledger-name">cluster_note</td>
-            <td class="ledger-desc">Suggest a folder for one note by semantic similarity against declared folder descriptions (<code>_folder.md</code>), with a frontmatter <code>type:</code> fallback. Returns the score and the winning reason; a wikilink neighbor vote comes along for reference.</td>
-          </tr>
-          <tr>
-            <td class="ledger-num">007</td>
-            <td class="ledger-name">cluster_vault</td>
-            <td class="ledger-desc">Label-propagation clustering of the entire vault wikilink graph. Preview with <code>apply=false</code> before committing.</td>
+            <td class="ledger-name">suggest_folder</td>
+            <td class="ledger-desc">Suggestion only — never moves anything. Suggests a folder for one note by semantic similarity against declared folder descriptions (<code>_folder.md</code>), with a frontmatter <code>type:</code> fallback, using the same config as the CLI and the watcher. Returns the score and the winning reason; a wikilink neighbor vote comes along for reference. Call <code>move_notes</code> to act on it.</td>
           </tr>
         </tbody>
       </table>

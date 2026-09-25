@@ -41,7 +41,7 @@ archiver_rag/               ← Python package (pip installable)
 ├── runtime.py              ← watcher heartbeat ($XDG_CACHE_HOME/archiver-rag/runtime.json) — written by watcher, read by status
 ├── report.py               ← compose + render for `status` and `health` (shared seam with --json)
 ├── service.py              ← launchd/systemd management for BOTH daemons (watcher + detached HTTP)
-├── utils.py                ← get_vault_path(), build_link_map(), note_stems(), is_hidden_path(), is_indexable_note(), extract_frontmatter(), load_config(), FOLDER_NOTE_NAME
+├── utils.py                ← get_vault_path(), build_link_map(), note_stems(), is_hidden_path(), is_indexable_note(), find_note(), extract_frontmatter(), load_config(), FOLDER_NOTE_NAME
 ├── wikilinks.py            ← context-aware wikilink extractor (offset-based code masking)
 ├── watcher.py              ← watchdog file watcher, calls ingest + auto_link + sweep_dead_links
 ├── core/
@@ -55,7 +55,7 @@ archiver_rag/               ← Python package (pip installable)
 │   ├── rerank.py           ← approach 3 post-processing reranker
 │   ├── connections.py      ← get_connections() — BFS wikilink traversal
 │   ├── linker.py           ← auto-linking after ingest (not exposed to agents)
-│   ├── clustering.py       ← label propagation clustering + cluster_note (both signals)
+│   ├── clustering.py       ← label propagation clustering + cluster_note (internal helper, both signals)
 │   ├── terms.py            ← term extraction: tags / c-TF-IDF + MMR + adaptive α (§4)
 │   ├── centroids.py        ← fingerprint-keyed centroid cache ($XDG_DATA_HOME/archiver-rag/centroids.json) + weighted_cosine()
 │   ├── placement.py        ← suggest_folder() — cosine vs descriptions + type: fallback
@@ -69,7 +69,7 @@ archiver_rag/               ← Python package (pip installable)
     ├── server.py           ← tool schemas + dispatch (transport-agnostic low-level Server)
     ├── http.py             ← streamable HTTP transport: build_app() / serve_http()
     └── register.py         ← writes MCP entry to ~/.claude.json (stdio, or url= for HTTP)
-tests/                      ← 436 tests, run with the pipx venv python (see Testing)
+tests/                      ← 447 tests, run with the pipx venv python (see Testing)
 ├── conftest.py             ← vault safety fixtures (_no_real_vault, tmp_vault) + home-path safety fixtures (_no_real_home_paths, tmp_install)
 ├── test_wikilinks.py       ← unit tests for wikilinks.py
 ├── test_linker_section.py  ← characterization tests for _append_links_section
@@ -95,7 +95,7 @@ tests/                      ← 436 tests, run with the pipx venv python (see Te
 ├── test_index_stats.py     ← drift categories, int-mtime staleness, _folder.md/.trash exclusion, unreachable Chroma reported not raised
 ├── test_report_render.py   ← status/health rendering from composed dicts: unconfigured, no-heartbeat, PID mismatch, crash-loop, JSON-serializable
 ├── test_watcher_heartbeat.py ← record_event fires on real events, NOT on spurious deletes or _folder.md writes
-├── test_mcp_http.py        ← HTTP transport in-process via ASGITransport: handshake, 7 tools, real call, Host allowlist, SSE responses, in-flight notification streaming
+├── test_mcp_http.py        ← HTTP transport in-process via ASGITransport: handshake, 6 tools, real call, Host allowlist, SSE responses, in-flight notification streaming
 ├── test_mcp_dispatch.py    ← _dispatch routing, write lock held only by mutating tools, event loop not blocked, per-tool notification emission + Notifier fail-soft
 ├── test_serve_flags.py     ← serve --transport/host/port defaults, non-loopback warning, register_mcp both shapes
 └── test_rerank.py          ← hub_boost saturation/scaling (graph/rerank.py)
@@ -160,15 +160,15 @@ archiver-rag watch <path>   # internal — watcher (called by service)
 ### Reorganization
 - **`move_notes(moves, update_links)`** — move 1 to N files. Rewrites [[wikilinks]] across vault after moving .md files. Returns structured success/failure report. Path traversal protected.
 
-### Clustering
-- **`cluster_vault(min_cluster_size, apply)`** — runs label propagation on entire vault wikilink graph. Returns clusters with `name`, `size`, `notes`, `suggested_folder`. Set `apply=true` to move files automatically via `move_notes`.
-- **`cluster_note(note, apply)`** — semantic folder placement for a single note. **Primary signal (Stage B):** cosine similarity against declared folder descriptions (`_folder.md`). Falls back to frontmatter `type:` field if no folder clears the threshold (`placement_similarity_threshold`, default 0.55). Returns `suggested_folder`, `similarity`, `reason` (`"semantic" | "type" | "none"`), `scores` (all folder similarities), and `neighbor_vote` (the old wikilink-neighbour vote, preserved as an informational secondary signal). `apply=true` acts on the semantic result. Folders without `_folder.md` do not participate in semantic placement.
+### Placement (suggestion only)
+- **`suggest_folder(note)`** — semantic folder placement for a single note. Suggestion only — it never moves anything; call `move_notes` yourself to act. **Primary signal (Stage B):** cosine similarity against declared folder descriptions (`_folder.md`). Falls back to frontmatter `type:` field if no folder clears the threshold. Reads the same config as the CLI `place` command and the watcher (`placement_similarity_threshold`, `type_fallback`, `advanced.placement_weights`, `advanced.name_prefix_bonus`), so its suggestion always matches theirs. Returns `suggested_folder`, `similarity`, `reason` (`"semantic" | "type" | "none"`), `scores` (all folder similarities), and `neighbor_vote` (the old wikilink-neighbour vote, preserved as an informational secondary signal).
 
 ### Knowledge logging
 - **`log_note(title, content, type, tags, related_notes)`** — creates a note in `vault/{type}/`. `type` is free-form and becomes the folder (e.g. `decision`, `meeting`, `lesson`, `idea`). Filename is the slug — no date prefix. Returns `created` (relative path), `type`, `title`, `tags`, `related`, `path`. Watcher auto-indexes and auto-links it — no extra steps needed.
 
 ### Not exposed to agents (internal)
 - `auto_link()` — called by watcher automatically, not an MCP tool
+- `cluster_vault()` / whole-vault label propagation — **removed as an MCP tool entirely** (nothing depended on it; superseded by `suggest_folder`, `place --all`, and Gate 2 inbox clustering). Stays reachable only via the manual, experimental `archiver-rag cluster` CLI command, which requires confirmation before `--apply`.
 
 **In-flight status notifications** — while a tool call runs, the server pushes `notifications/message` log entries (level `info`, `logger` = tool name) to the connected client, plus `notifications/progress` when the client supplied a `progressToken` for the request. These reach the client's UI/log surface, **not** the LLM's context — see the "Server→client status notifications" entry under Key technical decisions.
 
@@ -449,7 +449,7 @@ All runtime config lives at the XDG config path, resolved by `paths.py` (see "XD
 }
 ```
 
-`auto_cluster` — watcher triggers semantic placement automatically on new notes (`suggest_folder`/`move_notes` only — **not** `cluster_vault`, removed as an automatic path after the 2026-08-20 folder-collapse incident, see Service section). `cluster_threshold` — **vestigial**, still read and returned by `_get_cluster_config()` but no longer consumed anywhere inside `_maybe_cluster`; it only mattered for the removed `cluster_vault` fallback. `placement_similarity_threshold` — cosine threshold for semantic placement (0–1, default 0.55; currently `0.5` in this install). `type_fallback` — when no folder clears the threshold, fall back to the note's frontmatter `type:` field. `auto_describe` — watcher regenerates a folder's `_folder.md` (blended via adaptive α, same as `describe --all`) whenever a note is created/deleted/moved in or out of it, debounced per folder (`_REDESCRIBE_DEBOUNCE_SECONDS`). **Off by default** — see the Service section for the exact trigger scope and why body-only edits are excluded. `tag_terms_in_description` — normalize + separately-weighted tag scoring in c-TF-IDF description extraction (`false` reverts to the old diluted/unnormalized merge). `placement_weights.{identity,content}` — how `suggest_folder()` combines the note's identity (stem+tags) vs. content (body) cosine similarities; read by `cli.py::place` and `watcher.py::_maybe_cluster`, **not** by `cluster_note` (MCP tool), which — consistent with `threshold`/`type_fallback` today — uses `suggest_folder`'s own defaults instead of reading config. `name_prefix_bonus` — additive bonus when a note's stem starts with a described project folder's normalized name. `folder_vacancy_grace_periods` — consecutive empty structural-change checks before an emptied `source: auto` folder's `_folder.md` is archived to `.archive/` (default 3, read by `watcher.py::_get_folder_vacancy_grace_periods`; gated behind `auto_describe`, not a flag of its own — see "Folder lifecycle (Gate 1)" under Key technical decisions). **The default 3 is a placeholder carried over from the spec, not an empirically validated number.** `link_margin` / `max_total_links` — `auto_link`'s candidate-selection window (see "Desaturating the wikilink graph" under Key technical decisions): keep every candidate within `link_margin` of the top candidate's score, capped by `max_total_links`. Read by `graph/linker.py::_get_link_margin_config` — unlike `auto_cluster`/`auto_describe`, these are tuning floats rather than gating flags, so (deliberately, unlike `_get_cluster_config`) they go through `utils.load_config()` directly; a `{}` on error resolves to the same defaults via `.get()`, with no unsafe-default hazard. `http_host` / `http_port` / `http_path` — bind address for the HTTP transport, read by `mcp/http.py::configured_endpoint()` (defaults 127.0.0.1 / 8077 / `/mcp`; a corrupt config degrades to those loopback defaults via load_config's `{}` contract). Used identically by foreground `serve`, `start http`, and `status`, so all three describe the daemon by construction; explicit CLI flags override at `start http` time and are baked into ProgramArguments until the next rewrite. `auto_inbox` — Gate 2: routes a note into `inbox/` when `suggest_folder()` finds no semantic match and no `type:` fallback either, then checks whether `inbox/` has a cluster ready to spin out into a new real folder (see "Folder lifecycle (Gate 2)" under Key technical decisions). **Off by default** — same fail-safe-off contract as `auto_cluster`/`auto_describe`, read by its own `watcher.py::_get_inbox_config()` (not folded into `_get_cluster_config`'s tuple). `inbox_min_cluster_size` / `inbox_similarity_threshold` — the inbox clustering gate (minimum group size to spin out) and the greedy cosine-threshold used to group inbox notes by embedding similarity; both placeholders, not empirically validated, same status `link_margin`/`folder_vacancy_grace_periods` had when they first shipped.
+`auto_cluster` — watcher triggers semantic placement automatically on new notes (`suggest_folder`/`move_notes` only — **not** `cluster_vault`, removed as an automatic path after the 2026-08-20 folder-collapse incident, see Service section). `cluster_threshold` — **vestigial**, still read and returned by `_get_cluster_config()` but no longer consumed anywhere inside `_maybe_cluster`; it only mattered for the removed `cluster_vault` fallback. `placement_similarity_threshold` — cosine threshold for semantic placement (0–1, default 0.55; currently `0.5` in this install). `type_fallback` — when no folder clears the threshold, fall back to the note's frontmatter `type:` field. `auto_describe` — watcher regenerates a folder's `_folder.md` (blended via adaptive α, same as `describe --all`) whenever a note is created/deleted/moved in or out of it, debounced per folder (`_REDESCRIBE_DEBOUNCE_SECONDS`). **Off by default** — see the Service section for the exact trigger scope and why body-only edits are excluded. `tag_terms_in_description` — normalize + separately-weighted tag scoring in c-TF-IDF description extraction (`false` reverts to the old diluted/unnormalized merge). `placement_weights.{identity,content}` — how `suggest_folder()` combines the note's identity (stem+tags) vs. content (body) cosine similarities; read by `cli.py::place`, `watcher.py::_maybe_cluster`, and the `suggest_folder` MCP tool (via the shared `graph/placement.py::resolve_placement_config()` helper), so all three agree on a suggestion for the same note. `name_prefix_bonus` — additive bonus when a note's stem starts with a described project folder's normalized name. `folder_vacancy_grace_periods` — consecutive empty structural-change checks before an emptied `source: auto` folder's `_folder.md` is archived to `.archive/` (default 3, read by `watcher.py::_get_folder_vacancy_grace_periods`; gated behind `auto_describe`, not a flag of its own — see "Folder lifecycle (Gate 1)" under Key technical decisions). **The default 3 is a placeholder carried over from the spec, not an empirically validated number.** `link_margin` / `max_total_links` — `auto_link`'s candidate-selection window (see "Desaturating the wikilink graph" under Key technical decisions): keep every candidate within `link_margin` of the top candidate's score, capped by `max_total_links`. Read by `graph/linker.py::_get_link_margin_config` — unlike `auto_cluster`/`auto_describe`, these are tuning floats rather than gating flags, so (deliberately, unlike `_get_cluster_config`) they go through `utils.load_config()` directly; a `{}` on error resolves to the same defaults via `.get()`, with no unsafe-default hazard. `http_host` / `http_port` / `http_path` — bind address for the HTTP transport, read by `mcp/http.py::configured_endpoint()` (defaults 127.0.0.1 / 8077 / `/mcp`; a corrupt config degrades to those loopback defaults via load_config's `{}` contract). Used identically by foreground `serve`, `start http`, and `status`, so all three describe the daemon by construction; explicit CLI flags override at `start http` time and are baked into ProgramArguments until the next rewrite. `auto_inbox` — Gate 2: routes a note into `inbox/` when `suggest_folder()` finds no semantic match and no `type:` fallback either, then checks whether `inbox/` has a cluster ready to spin out into a new real folder (see "Folder lifecycle (Gate 2)" under Key technical decisions). **Off by default** — same fail-safe-off contract as `auto_cluster`/`auto_describe`, read by its own `watcher.py::_get_inbox_config()` (not folded into `_get_cluster_config`'s tuple). `inbox_min_cluster_size` / `inbox_similarity_threshold` — the inbox clustering gate (minimum group size to spin out) and the greedy cosine-threshold used to group inbox notes by embedding similarity; both placeholders, not empirically validated, same status `link_margin`/`folder_vacancy_grace_periods` had when they first shipped.
 
 **`auto_cluster` and `auto_describe` were re-enabled and the watcher restarted on 2026-08-22**, on the user's explicit go-ahead (both had been OFF and the watcher stopped since the 2026-08-20 folder-collapse recovery, per this file's own prior standing instruction not to flip them back on without asking). The three post-incident fixes were already in place before this re-enablement — `cluster_vault` removed as an automatic path, `described_folders()` excluding 0-note folders, and `_maybe_redescribe` debounced per folder (see Service section) — this is the first time they're being exercised under live `auto_cluster`/`auto_describe` traffic. When `auto_cluster` is on: the watcher runs `suggest_folder()` (Stage B semantic placement), computes cosine similarity against declared folder descriptions, and moves the file to the best match above `placement_similarity_threshold`. If no folder clears the threshold, falls back to the note's frontmatter `type:` field (`type_fallback`, currently `true` in this install — flipped from `false` during the recovery because the now-description-less type-folders, see Pending Work, need it to function as fallback destinations at all). Previously used wikilink-neighbour vote (`cluster_note`) — that signal is still returned by `cluster_note` as `neighbor_vote` but is no longer used for auto-placement. **Do not flip either flag back off, or stop the watcher, without asking** — same standing rule as before, just inverted: this is now the live configuration to preserve, not revert.
 
@@ -575,7 +575,7 @@ Never skip `search_vault` to save time. A vault miss is fast; redundant agent-lo
 - Use `context_note` parameter when you know which note the query relates to — boosts connected results
 - Use `type=` to filter by frontmatter taxonomy (stable across `auto_cluster` moves)
 - `get_connections(note, depth=2)` before reorganizing to understand what would break
-- `cluster_note(note)` before manually placing a new note — fast neighbor-vote suggestion
+- `suggest_folder(note)` before manually placing a new note — semantic suggestion, matches `place` and the watcher
 - After any out-of-band rename run `archiver-rag prune` before searching
 
 ---
@@ -584,21 +584,23 @@ Never skip `search_vault` to save time. A vault miss is fast; redundant agent-lo
 
 ```toml
 dependencies = [
-    "chromadb",
-    "sentence-transformers",
-    "watchdog",
-    "mcp",
-    "typer",
+    "chromadb>=1.5,<2",
+    "sentence-transformers>=5,<6",
+    "watchdog>=6,<7",
+    "numpy",
+    "mcp>=1.9,<2",
+    "starlette>=1.2",
+    "uvicorn>=0.49",
+    "typer>=0.25,<0.26",
     "rich",
     "pyyaml",
     "platformdirs",
-    "numpy",
 ]
 ```
 
 ## Python version
 
-Requires Python >= 3.10. Currently running 3.14.3.
+Requires Python >= 3.11. Currently running 3.14.3.
 
 ## Testing
 
@@ -606,7 +608,7 @@ Requires Python >= 3.10. Currently running 3.14.3.
 /Users/fernanrod/.local/pipx/venvs/archiver-rag/bin/python -m pytest tests/ -q
 ```
 
-There is no `python` on PATH and no pytest in the system venv — the pipx venv is the only interpreter with `chromadb` installed. (pi-lens's pytest adapter hardcodes `command: "python"` and therefore cannot run this suite on this machine — verify with the pipx venv python above.) 436 tests, all green. Tests marked `slow` load the sentence-transformers model (`embed()` calls) and take ~8 seconds; run with `-m "not slow"` to skip them.
+There is no `python` on PATH and no pytest in the system venv — the pipx venv is the only interpreter with `chromadb` installed. (pi-lens's pytest adapter hardcodes `command: "python"` and therefore cannot run this suite on this machine — verify with the pipx venv python above.) 447 tests, all green. Tests marked `slow` load the sentence-transformers model (`embed()` calls) and take ~8 seconds; run with `-m "not slow"` to skip them.
 
 `tests/conftest.py` carries the safety net: `_no_real_vault` is **autouse** and makes `get_vault_path()` raise in every test, so a test can never touch the real vault by accident. Each module binds its own reference via `from archiver_rag.utils import get_vault_path`, so the fixture patches every module in `_MODULES_WITH_VAULT` individually — **add new modules to that list** when they import `get_vault_path` at module level. `tmp_vault` opts back in, repointing those same bindings at a temp dir.
 

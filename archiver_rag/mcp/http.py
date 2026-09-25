@@ -1,7 +1,7 @@
 """Streamable HTTP transport for the MCP server.
 
 Wraps the *existing* low-level `Server` from mcp/server.py — StreamableHTTPSessionManager
-accepts it directly, so all seven tool handlers, their schemas, and the dispatch chain
+accepts it directly, so all six tool handlers, their schemas, and the dispatch chain
 are reused verbatim. There is no FastMCP migration here and no second definition of the
 tools that could drift from the stdio one.
 
@@ -9,8 +9,8 @@ archiver-rag deliberately terminates **no TLS and performs no authentication**. 
 belong to whatever layer the operator already trusts — a reverse proxy, a VPN, an SSH
 tunnel — and choosing one for them is not this tool's job. Hence the loopback default,
 and hence cli.py shouting before it binds anywhere else. Every tool is exposed to whoever
-can reach the port: the whole vault is readable, and log_note / move_notes /
-cluster_vault can modify it.
+can reach the port: the whole vault is readable, and log_note / move_notes
+can modify it.
 """
 
 from __future__ import annotations

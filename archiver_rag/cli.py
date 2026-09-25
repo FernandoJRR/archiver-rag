@@ -120,7 +120,7 @@ def _start_http(
         print(
             f"\n[yellow]⚠️  Binding to {host} with NO authentication.[/yellow]\n"
             "    Every tool is exposed: the full vault is readable, and\n"
-            "    log_note / move_notes / cluster_vault can modify it.\n"
+            "    log_note / move_notes can modify it.\n"
             "    Put a TLS-terminating reverse proxy, VPN, or SSH tunnel in front.\n"
         )
     print("[dim]Add the URL to your agents' MCP registry yourself "
@@ -442,8 +442,16 @@ def delete_cmd(
 def cluster(
     apply: bool = typer.Option(False, "--apply", help="Move files automatically"),
     min_size: int = typer.Option(2, "--min-size", help="Minimum cluster size"),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation with --apply"),
 ):
-    """Suggest folder groupings via label propagation"""
+    """[EXPERIMENTAL] Suggest folder groupings via whole-vault label propagation.
+
+    Diagnostic/manual-only — this label-propagation pass on the wikilink graph is
+    the same mechanism behind the 2026-08-20 folder-collapse incident (see
+    AGENTS.md) and is never run automatically by the watcher. Prefer `place`
+    (semantic, per-note) for routine reorganization; review this command's
+    dry-run output carefully before ever passing --apply.
+    """
     from archiver_rag.graph.clustering import (
         cluster_vault as _cluster_vault,
         apply_clusters,
@@ -464,6 +472,21 @@ def cluster(
         for stem in result["unclustered"]:
             print(f"  {stem}")
     if apply:
+        if result["clusters"] and not yes:
+            from rich.prompt import Confirm
+
+            print(
+                "\n[yellow]⚠️  This will move files in bulk across the vault, "
+                "rewriting wikilinks as it goes.[/yellow]"
+            )
+            confirm = Confirm.ask(
+                f"Move {sum(c['size'] for c in result['clusters'])} note(s) into "
+                f"{result['total_clusters']} cluster folder(s)?",
+                default=False,
+            )
+            if not confirm:
+                print("Aborted.")
+                raise typer.Exit()
         moves = apply_clusters(result["clusters"])
         print(f"\n[green]✅ Applied {len(moves)} move operation(s)[/green]")
     else:
@@ -483,17 +506,17 @@ def place(
     --all: show current vs suggested folder for every note, with before/after distribution.
     --all --apply: batch move all notes whose suggestion differs from current folder.
     """
-    from archiver_rag.graph.placement import suggest_folder
-    from archiver_rag.utils import get_vault_path, load_config
+    from archiver_rag.graph.placement import resolve_placement_config, suggest_folder
+    from archiver_rag.utils import get_vault_path
     from archiver_rag.vault.reorganize import move_notes
 
     vault = Path(get_vault_path())
-    cfg = load_config()
-    threshold = float(cfg.get("placement_similarity_threshold", 0.55))
-    type_fb = bool(cfg.get("type_fallback", True))
-    w_identity = float(cfg.get("advanced", {}).get("placement_weights", {}).get("identity", 0.6))
-    w_content = float(cfg.get("advanced", {}).get("placement_weights", {}).get("content", 0.4))
-    name_prefix_bonus = float(cfg.get("advanced", {}).get("name_prefix_bonus", 0.15))
+    params = resolve_placement_config()
+    threshold = params["threshold"]
+    type_fb = params["type_fallback"]
+    w_identity = params["w_identity"]
+    w_content = params["w_content"]
+    name_prefix_bonus = params["name_prefix_bonus"]
 
     if all_notes:
         # ── §9.7 vault-wide dry-run / batch move ────────────────────────────
@@ -575,12 +598,12 @@ def place(
         print("[red]Provide a note filename or use --all[/red]")
         raise typer.Exit(1)
 
-    stem = Path(note).stem
-    found = list(vault.rglob(f"{stem}.md"))
-    if not found:
+    from archiver_rag.utils import find_note
+
+    note_path = find_note(vault, note)
+    if note_path is None:
         print(f"[red]Note not found: {note}[/red]")
         raise typer.Exit(1)
-    note_path = found[0]
 
     result = suggest_folder(vault, note_path, threshold=threshold, type_fallback=type_fb, w_identity=w_identity, w_content=w_content, name_prefix_bonus=name_prefix_bonus)
     if result["suggested_folder"]:
@@ -972,7 +995,7 @@ def serve(
         print(
             f"\n[yellow]⚠️  Binding to {host} with NO authentication.[/yellow]\n"
             "    Every tool is exposed: the full vault is readable, and\n"
-            "    log_note / move_notes / cluster_vault can modify it.\n"
+            "    log_note / move_notes can modify it.\n"
             "    Put a TLS-terminating reverse proxy, VPN, or SSH tunnel in front.\n"
         )
 

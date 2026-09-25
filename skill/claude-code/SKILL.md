@@ -4,7 +4,7 @@ description: Guide for using the archiver-rag MCP tools — semantic search, vau
 ---
 
 Overview:
-The archiver-rag MCP server exposes 7 tools for working with an Obsidian vault as a knowledge graph. This skill describes when and how to call each tool. $ARGUMENTS[0] is optional context about the current task.
+The archiver-rag MCP server exposes 6 tools for working with an Obsidian vault as a knowledge graph. This skill describes when and how to call each tool. $ARGUMENTS[0] is optional context about the current task.
 
 ## Memory priority rule
 
@@ -39,7 +39,7 @@ After logging to the vault, you may also write the auto-memory file so the index
 - `get_connections` depth maximum is 3 — BFS grows quickly beyond that
 - Never edit `## Related` sections manually — `linker.py` owns them
 - `move_notes` rewrites wikilinks and aliases automatically — do not patch links by hand
-- Preview `cluster_vault` with `apply=false` before using `apply=true`
+- `suggest_folder` never moves anything — call `move_notes` to act on its suggestion
 
 ## Decision flow
 
@@ -62,12 +62,11 @@ Finished a non-trivial task?
 Considering vault reorganization?
   1. vault_status          — understand current structure and health
   2. get_connections(note, depth=2) — understand what would break when moving a note
-  3. cluster_note(note)    — lightweight suggestion for a single note
-     OR cluster_vault      — full label-propagation for the whole vault
-  4. move_notes            — execute moves (or use apply=true on cluster tools)
+  3. suggest_folder(note)  — semantic suggestion for a single note (suggestion only)
+  4. move_notes            — execute moves
 
 Placing a newly created note?
-  → cluster_note(note) first — fast neighbor-vote, no label propagation
+  → suggest_folder(note) first — semantic suggestion, matches place/watcher config
 ```
 
 ## Tool reference
@@ -177,37 +176,17 @@ Do not manually edit the `## Related` section at the bottom of any note — `lin
 
 ---
 
-### cluster_note
-Suggest a folder for a single note based on where its wikilink neighbors currently live. Lightweight — no label propagation.
+### suggest_folder
+Suggest a folder for a single note. Suggestion only — never moves anything; call `move_notes` to act on the result. Primary signal is cosine similarity against declared folder descriptions (`_folder.md`), falling back to the note's frontmatter `type:`. Reads the same config as the CLI `place` command and the watcher (`placement_similarity_threshold`, `type_fallback`, `placement_weights`, `name_prefix_bonus`), so its suggestion always matches theirs.
 
 ```
 note   string    required          Note filename (e.g. 'AuditTrail.md')
-apply  boolean   default false     Move the note immediately if true
 ```
 
-Returns `{ note, suggested_folder, votes, total_neighbors, reason }`.  
-`suggested_folder` is `null` if note has no neighbors or all neighbors are in vault root.
+Returns `{ note, suggested_folder, similarity, reason, scores, neighbor_vote }`.  
+`reason` is `"semantic"`, `"type"`, or `"none"`. `neighbor_vote` is a secondary, informational wikilink-based vote — not used to pick `suggested_folder`.
 
 When to use:
 - Immediately after creating a note — fast placement suggestion
 - Before deciding manually where a note belongs
-- Called automatically by the watcher when `auto_cluster=true` in config
-
----
-
-### cluster_vault
-Full label-propagation clustering of the entire vault wikilink graph.
-
-```
-min_cluster_size   int       default 2     Minimum notes to form a cluster
-apply              boolean   default false Move all files automatically if true
-```
-
-Returns `{ total_notes, total_clusters, unclustered[], clusters[] }`.  
-Each cluster has `name`, `size`, `notes[]`, `suggested_folder`.
-
-When to use:
-- Organizing a messy or new vault
-- After significant vault growth (many new notes)
-- Always run with `apply=false` first to preview before committing
-- Raise `min_cluster_size` to 3–5 to reduce noise in large vaults
+- Whole-vault label-propagation clustering (formerly the `cluster_vault` MCP tool) is gone from MCP — it is manual/diagnostic-only now, via the experimental `archiver-rag cluster` CLI command

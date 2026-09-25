@@ -67,6 +67,15 @@ def is_indexable_note(path: Path) -> bool:
     )
 
 
+def find_note(vault: Path, name: str) -> Path | None:
+    """Resolve a note by stem, ignoring hidden dirs (.trash, .archive) and sidecars."""
+    stem = Path(name).stem
+    for f in vault.rglob(f"{stem}.md"):
+        if is_indexable_note(f.relative_to(vault)):
+            return f
+    return None
+
+
 def build_link_map(vault: Path) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
     outgoing: dict[str, list[str]] = defaultdict(list)
     incoming: dict[str, list[str]] = defaultdict(list)

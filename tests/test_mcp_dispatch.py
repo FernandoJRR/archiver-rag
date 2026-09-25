@@ -67,8 +67,7 @@ def test_every_declared_tool_has_a_dispatch_branch(tmp_vault):
         "vault_status",
         "move_notes",
         "log_note",
-        "cluster_vault",
-        "cluster_note",
+        "suggest_folder",
         "get_connections",
     }
     assert declared >= mcp_server._MUTATING_TOOLS
@@ -329,118 +328,119 @@ def test_move_notes_null_notifier_keeps_single_batched_call(tmp_vault, monkeypat
     assert result == {"moved": 2, "failed": 0, "succeeded": moves, "errors": []}
 
 
-def test_cluster_vault_apply_emits_analysis_and_per_move_progress(
-    tmp_vault, monkeypatch
-):
+def test_cluster_vault_is_not_a_known_tool(tmp_vault):
+    """Removed entirely — replaced by suggest_folder / place / Gate 2 inbox."""
+    with pytest.raises(ValueError, match="Unknown tool"):
+        mcp_server._dispatch("cluster_vault", {})
+
+
+async def test_suggest_folder_schema_has_no_apply():
+    tools = await mcp_server.list_tools()
+    names = {t.name for t in tools}
+    assert "suggest_folder" in names
+    assert "cluster_note" not in names
+    assert "cluster_vault" not in names
+    schema = next(t for t in tools if t.name == "suggest_folder").inputSchema
+    assert "apply" not in schema["properties"]
+
+
+def test_suggest_folder_emits_placing_log(tmp_vault, monkeypatch):
+    tmp_vault.write("scratch/a.md", "---\ntype: decision\n---\nbody")
     monkeypatch.setattr(
-        "archiver_rag.graph.clustering.cluster_vault",
-        lambda min_cluster_size=2: {
-            "total_notes": 4,
-            "total_clusters": 1,
-            "unclustered": [],
-            "clusters": [
-                {
-                    "name": "x",
-                    "size": 2,
-                    "notes": ["a.md", "b.md"],
-                    "suggested_folder": "x",
-                }
-            ],
+        "archiver_rag.graph.placement.suggest_folder",
+        lambda vault, note_path, **kw: {
+            "suggested_folder": "target",
+            "similarity": 0.9,
+            "reason": "semantic",
+            "scores": {"target": 0.9},
         },
     )
-    moved = []
-
-    def _fake_move(moves):
-        moved.append(moves[0]["source"])
-        return {"moved": 1, "failed": 0, "succeeded": moves, "errors": []}
-
-    monkeypatch.setattr(mcp_server, "move_notes", _fake_move)
+    monkeypatch.setattr(
+        "archiver_rag.graph.clustering._build_adjacency", lambda vault: {}
+    )
+    monkeypatch.setattr(
+        "archiver_rag.graph.clustering._neighbor_vote",
+        lambda vault, adjacency, note: {"suggested_folder": None, "votes": 0},
+    )
     rec = _Recorder()
 
     result = json.loads(
-        mcp_server._dispatch("cluster_vault", {"apply": True}, notify=rec)[0].text
+        mcp_server._dispatch("suggest_folder", {"note": "a.md"}, notify=rec)[0].text
     )
 
-    assert _logs(rec) == ["analyzing 4 notes"]
-    assert _progress(rec) == [
-        ("progress", 1, 2, "moved 1/2"),
-        ("progress", 2, 2, "moved 2/2"),
-    ]
-    assert moved == ["a.md", "b.md"]
-    assert len(result["moves"]) == 2
-
-
-def test_cluster_vault_apply_null_notifier_uses_apply_clusters(tmp_vault, monkeypatch):
-    """Without an active notifier the tested apply_clusters path is kept verbatim."""
-    monkeypatch.setattr(
-        "archiver_rag.graph.clustering.cluster_vault",
-        lambda min_cluster_size=2: {
-            "total_notes": 1,
-            "total_clusters": 1,
-            "unclustered": [],
-            "clusters": [
-                {
-                    "name": "x",
-                    "size": 1,
-                    "notes": ["a.md"],
-                    "suggested_folder": "x",
-                }
-            ],
-        },
-    )
-    used = []
-    monkeypatch.setattr(
-        "archiver_rag.graph.clustering.apply_clusters",
-        lambda clusters: used.append(clusters) or [],
-    )
-
-    result = json.loads(mcp_server._dispatch("cluster_vault", {"apply": True})[0].text)
-
-    assert result["moves"] == []
-    assert len(used) == 1  # apply_clusters was called, not the split loop
-
-
-def test_cluster_note_emits_placing_and_move_reports(tmp_vault, monkeypatch):
-    tmp_vault.write("scratch/a.md", "---\ntype: decision\n---\nbody")
-
-    def _fake_cluster_note(note, apply=False):
-        # Simulate the internal move physically landing (source gone, dest exists).
-        (tmp_vault.root / "scratch" / "a.md").unlink()
-        tmp_vault.write("target/a.md", "---\ntype: decision\n---\nbody")
-        return {"note": note, "suggested_folder": "target", "similarity": 0.9}
-
-    monkeypatch.setattr(
-        "archiver_rag.graph.clustering.cluster_note", _fake_cluster_note
-    )
-    rec = _Recorder()
-
-    mcp_server._dispatch("cluster_note", {"note": "a.md", "apply": True}, notify=rec)
-
-    assert rec.events == [
-        ("log", "placing 'a.md'"),
-        ("progress", 1, 1, "moved to target"),
-        ("log", "moved a.md → target"),
-    ]
-
-
-def test_cluster_note_no_move_reports_nothing_after_placing(tmp_vault, monkeypatch):
-    tmp_vault.write("target/a.md", "---\ntype: decision\n---\nbody")
-    monkeypatch.setattr(
-        "archiver_rag.graph.clustering.cluster_note",
-        lambda note, apply=False: {
-            "note": note,
-            "suggested_folder": "target",
-            "similarity": 0.9,
-        },
-    )
-    rec = _Recorder()
-
-    mcp_server._dispatch("cluster_note", {"note": "a.md", "apply": True}, notify=rec)
-
-    # Note already sits in the suggested folder — cluster_note's move is a no-op,
-    # so only the 'placing' log fires.
     assert _logs(rec) == ["placing 'a.md'"]
     assert _progress(rec) == []
+    assert result["suggested_folder"] == "target"
+    assert result["reason"] == "semantic"
+    assert "neighbor_vote" in result
+
+
+def test_suggest_folder_apply_true_moves_nothing_on_disk(tmp_vault, monkeypatch):
+    """The schema no longer declares 'apply' — an agent passing it anyway must
+    still get a pure suggestion, never a move."""
+    tmp_vault.write("scratch/a.md", "---\ntype: decision\n---\nbody")
+    monkeypatch.setattr(
+        "archiver_rag.graph.placement.suggest_folder",
+        lambda vault, note_path, **kw: {
+            "suggested_folder": "target",
+            "similarity": 0.9,
+            "reason": "semantic",
+            "scores": {"target": 0.9},
+        },
+    )
+    monkeypatch.setattr(
+        "archiver_rag.graph.clustering._build_adjacency", lambda vault: {}
+    )
+    monkeypatch.setattr(
+        "archiver_rag.graph.clustering._neighbor_vote",
+        lambda vault, adjacency, note: {"suggested_folder": None, "votes": 0},
+    )
+
+    mcp_server._dispatch("suggest_folder", {"note": "a.md", "apply": True})
+
+    assert (tmp_vault.root / "scratch" / "a.md").exists()
+    assert not (tmp_vault.root / "target" / "a.md").exists()
+
+
+def test_suggest_folder_honours_configured_threshold(tmp_vault, monkeypatch):
+    """suggest_folder must read placement config the same way cli.py::place does."""
+    tmp_vault.write("scratch/a.md", "---\ntype: decision\n---\nbody")
+    seen = {}
+
+    def _fake_suggest_folder(vault, note_path, **kw):
+        seen.update(kw)
+        return {
+            "suggested_folder": None,
+            "similarity": 0.1,
+            "reason": "none",
+            "scores": {},
+        }
+
+    monkeypatch.setattr(
+        "archiver_rag.graph.placement.suggest_folder", _fake_suggest_folder
+    )
+    monkeypatch.setattr(
+        "archiver_rag.graph.placement.resolve_placement_config",
+        lambda: {
+            "threshold": 0.9,
+            "type_fallback": False,
+            "w_identity": 0.7,
+            "w_content": 0.3,
+            "name_prefix_bonus": 0.2,
+        },
+    )
+    monkeypatch.setattr(
+        "archiver_rag.graph.clustering._build_adjacency", lambda vault: {}
+    )
+    monkeypatch.setattr(
+        "archiver_rag.graph.clustering._neighbor_vote",
+        lambda vault, adjacency, note: {"suggested_folder": None, "votes": 0},
+    )
+
+    mcp_server._dispatch("suggest_folder", {"note": "a.md"})
+
+    assert seen["threshold"] == 0.9
+    assert seen["type_fallback"] is False
 
 
 def test_dispatch_without_notify_defaults_to_null_and_is_identical(

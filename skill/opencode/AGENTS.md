@@ -46,7 +46,7 @@ Run `which archiver-rag` to confirm the executable path on your machine.
 ## Vault-first memory — MANDATORY
 
 **The Obsidian vault is the primary memory system. Your internal context is a
-fallback only.** The archiver-rag MCP server exposes 7 tools for working with the
+fallback only.** The archiver-rag MCP server exposes 6 tools for working with the
 vault as a knowledge graph. Apply these rules at the start of every task and every
 memory operation:
 
@@ -76,7 +76,7 @@ session that ends is lost permanently. Reading and writing are symmetric.
 - `get_connections` depth maximum is 3 — BFS grows quickly beyond that
 - Never edit `## Related` sections manually — `linker.py` owns them
 - `move_notes` rewrites wikilinks and aliases automatically — do not patch links by hand
-- Preview `cluster_vault` with `apply=false` before using `apply=true`
+- `suggest_folder` never moves anything — call `move_notes` to act on its suggestion
 
 ## Decision flow
 
@@ -108,11 +108,11 @@ Write to the vault when any of these are true — fire immediately, not at task 
 Considering vault reorganization?
   1. vault_status                    — current structure and health
   2. get_connections(note, depth=2)  — what would break when moving a note
-  3. cluster_note(note) OR cluster_vault
-  4. move_notes (or apply=true on cluster tools)
+  3. suggest_folder(note)  — semantic suggestion for a single note (suggestion only)
+  4. move_notes            — execute moves
 
 Placing a newly created note?
-  → cluster_note(note) first — fast neighbor-vote, no label propagation
+  → suggest_folder(note) first — semantic suggestion, matches place/watcher config
 ```
 
 ## Tool reference
@@ -179,25 +179,17 @@ Returns `{ created, type, title, tags, related, path }`. Filename:
 Collision-safe. Do not manually edit the `## Related` section — `linker.py` overwrites
 it on next ingest.
 
-### cluster_note
-Suggest a folder for a single note based on where its wikilink neighbors live.
-Lightweight, no label propagation.
+### suggest_folder
+Suggest a folder for a single note. Suggestion only — never moves anything; call `move_notes` to act on the result. Primary signal is cosine similarity against declared folder descriptions (`_folder.md`), falling back to the note's frontmatter `type:`. Reads the same config as the CLI `place` command and the watcher (`placement_similarity_threshold`, `type_fallback`, `placement_weights`, `name_prefix_bonus`), so its suggestion always matches theirs.
 
 ```
-note   string    required        Note filename (e.g. 'AuditTrail.md')
-apply  boolean   default false   Move the note immediately if true
+note   string    required          Note filename (e.g. 'AuditTrail.md')
 ```
 
-Returns `{ note, suggested_folder, votes, total_neighbors, reason }`.
-`suggested_folder` is `null` if the note has no neighbors or all are in vault root.
+Returns `{ note, suggested_folder, similarity, reason, scores, neighbor_vote }`.  
+`reason` is `"semantic"`, `"type"`, or `"none"`. `neighbor_vote` is a secondary, informational wikilink-based vote — not used to pick `suggested_folder`.
 
-### cluster_vault
-Full label-propagation clustering of the entire vault wikilink graph.
-
-```
-min_cluster_size   int       default 2      Minimum notes to form a cluster
-apply              boolean   default false  Move all files automatically if true
-```
-
-Returns `{ total_notes, total_clusters, unclustered[], clusters[] }`. Always run
-with `apply=false` first to preview.
+When to use:
+- Immediately after creating a note — fast placement suggestion
+- Before deciding manually where a note belongs
+- Whole-vault label-propagation clustering (formerly the `cluster_vault` MCP tool) is gone from MCP — it is manual/diagnostic-only now, via the experimental `archiver-rag cluster` CLI command

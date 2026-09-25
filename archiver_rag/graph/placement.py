@@ -218,6 +218,26 @@ def suggest_folder(
     }
 
 
+def resolve_placement_config(cfg: dict | None = None) -> dict:
+    """Resolve suggest_folder()'s tunable parameters from config the same way
+    cli.py::place does, so the CLI, the watcher, and the suggest_folder MCP tool
+    never disagree on a suggestion for the same note.
+    """
+    from archiver_rag.utils import load_config
+
+    if cfg is None:
+        cfg = load_config()
+    advanced = cfg.get("advanced", {})
+    weights = advanced.get("placement_weights", {})
+    return {
+        "threshold": float(cfg.get("placement_similarity_threshold", 0.55)),
+        "type_fallback": bool(cfg.get("type_fallback", True)),
+        "w_identity": float(weights.get("identity", 0.6)),
+        "w_content": float(weights.get("content", 0.4)),
+        "name_prefix_bonus": float(advanced.get("name_prefix_bonus", 0.15)),
+    }
+
+
 def _type_folder(note_path: Path) -> str | None:
     """Return the frontmatter type: value, sanitized as a folder name.
 

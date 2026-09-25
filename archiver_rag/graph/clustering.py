@@ -1,6 +1,6 @@
 from pathlib import Path
 from collections import Counter
-from archiver_rag.utils import get_vault_path, note_stems, is_indexable_note
+from archiver_rag.utils import get_vault_path, note_stems, is_indexable_note, find_note
 from archiver_rag.wikilinks import extract_wikilinks
 
 
@@ -164,39 +164,34 @@ def _neighbor_vote(vault: Path, adjacency: dict, note_name: str) -> dict:
     }
 
 
-def cluster_note(note_name: str, apply: bool = False) -> dict:
-    """Suggest folder placement for a single note.
+def cluster_note(note_name: str, **placement) -> dict:
+    """Suggest folder placement for a single note. Never moves anything.
 
     Primary signal: cosine similarity against declared folder descriptions (Stage B).
     Secondary signal: wikilink-neighbour vote (informational only, returned as neighbor_vote).
-
-    apply=True moves the note to the semantic suggestion (not the vote).
+    `placement` is forwarded to suggest_folder() (see placement.resolve_placement_config).
     """
-    vault = Path(get_vault_path())
-
-    # Semantic placement (primary)
     from archiver_rag.graph.placement import suggest_folder
 
-    # Locate the note by stem
-    stem = Path(note_name).stem
-    found = list(vault.rglob(f"{stem}.md"))
-    if not found:
+    vault = Path(get_vault_path())
+    note_path = find_note(vault, note_name)
+    if note_path is None:
         return {
             "note": note_name,
             "suggested_folder": None,
             "similarity": 0.0,
             "reason": "Note not found in vault",
+            "scores": {},
             "neighbor_vote": {"suggested_folder": None, "votes": 0, "total_neighbors": 0, "reason": "Note not found"},
         }
 
-    note_path = found[0]
-    semantic = suggest_folder(vault, note_path)
+    semantic = suggest_folder(vault, note_path, **placement)
 
     # Neighbour vote (secondary, informational)
     adjacency = _build_adjacency(vault)
     vote = _neighbor_vote(vault, adjacency, note_name)
 
-    result = {
+    return {
         "note": note_name,
         "suggested_folder": semantic["suggested_folder"],
         "similarity": semantic["similarity"],
@@ -204,11 +199,3 @@ def cluster_note(note_name: str, apply: bool = False) -> dict:
         "scores": semantic["scores"],
         "neighbor_vote": vote,
     }
-
-    if apply and result["suggested_folder"]:
-        from archiver_rag.vault.reorganize import move_notes
-        src = str(note_path.relative_to(vault))
-        dst = f"{result['suggested_folder']}/{note_path.name}"
-        move_notes([{"source": src, "destination": dst}])
-
-    return result

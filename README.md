@@ -77,8 +77,8 @@ For local development from a clone of this repo, use `pipx install --editable .`
 ```bash
 git clone https://github.com/FernandoJRR/archiver-rag && cd archiver-rag
 pipx install --editable .   # global CLI — required for MCP registration
-pip install -e ".[dev]"     # adds pytest
-pytest                      # 410 tests, ~5 s
+pip install --group dev -e .  # adds pytest, ruff
+pytest                      # 447 tests, ~5 s
 ```
 
 Tests marked `slow` load the sentence-transformers model; skip them with `-m "not slow"`.
@@ -135,7 +135,7 @@ claude mcp add --scope user archiver-rag $(which archiver-rag) serve
 
 By default the server speaks MCP over **stdio**: your client spawns it as a child
 process. That means one client per server, and no way to reach the vault from another
-machine. `--transport http` serves the same seven tools over streamable HTTP instead, so
+machine. `--transport http` serves the same six tools over streamable HTTP instead, so
 several clients can share one warm process:
 
 ```bash
@@ -227,8 +227,8 @@ checks it (see below).
 ### Reaching it from another machine
 
 > **archiver-rag performs no authentication and terminates no TLS.** Anyone who can
-> reach the port has full access: the entire vault is readable, and `log_note`,
-> `move_notes` and `cluster_vault` can modify it.
+> reach the port has full access: the entire vault is readable, and `log_note` and
+> `move_notes` can modify it.
 
 It is deliberately not this tool's job to decide how you secure that. Keep the server on
 loopback and put a layer you already trust in front of it — a reverse proxy terminating
@@ -318,7 +318,7 @@ archiver-rag place <note>              # suggest folder (semantic + type fallbac
 archiver-rag place <note> --apply      # move the note immediately
 archiver-rag place --all               # dry-run: current vs suggested folder for every note
 archiver-rag place --all --apply       # batch move all notes to their suggestion
-archiver-rag cluster [--min-size 2] [--apply]   # label propagation over the wikilink graph (manual only)
+archiver-rag cluster [--min-size 2] [--apply]   # [EXPERIMENTAL] label propagation over the wikilink graph (manual/diagnostic only)
 archiver-rag relink                    # dry-run: report ## Related before/after under the margin rule
 archiver-rag relink --apply            # one-time repair: rebuild every note's ## Related section
 
@@ -338,7 +338,7 @@ archiver-rag uninstall         # remove all data, both services, and MCP registr
 
 ## MCP tools (for agents)
 
-Once registered, agents have access to 7 tools:
+Once registered, agents have access to 6 tools:
 
 | Tool | What it does |
 |---|---|
@@ -347,8 +347,9 @@ Once registered, agents have access to 7 tools:
 | `get_connections` | BFS wikilink traversal — outgoing and incoming links up to depth 3. |
 | `move_notes` | Move files and auto-rewrite all `[[wikilinks]]` across the vault. |
 | `log_note` | Create a knowledge note at `{type}/{slug}.md`; watcher indexes and auto-links it immediately. |
-| `cluster_note` | Suggest a folder for one note by semantic similarity against declared folder descriptions (`_folder.md`); falls back to the note's frontmatter `type:`. Returns `reason` (`semantic` / `type` / `none`), per-folder `scores`, and a secondary `neighbor_vote`. |
-| `cluster_vault` | Label-propagation clustering of the entire vault with folder suggestions. Manual tool only — the watcher never runs it automatically. |
+| `suggest_folder` | Suggestion only — never moves anything. Suggests a folder for one note by semantic similarity against declared folder descriptions (`_folder.md`), matching the same config the CLI `place` command and the watcher use; falls back to the note's frontmatter `type:`. Returns `reason` (`semantic` / `type` / `none`), per-folder `scores`, and a secondary `neighbor_vote`. Use `move_notes` to act on the result. |
+
+Whole-vault label-propagation clustering (formerly the `cluster_vault` MCP tool) is manual/diagnostic-only now — see the experimental `archiver-rag cluster` CLI command above.
 
 ---
 
@@ -391,8 +392,8 @@ Data (the ChromaDB index and `centroids.json`, the per-folder description centro
 
 Key by key:
 
-- `auto_cluster` — the watcher runs semantic placement (`suggest_folder`) for new notes and moves the file to the best-matching described folder. It never runs full-graph `cluster_vault` automatically — that stays a manual `archiver-rag cluster` command.
-- `cluster_threshold` — vestigial; kept so old configs still load. It only mattered for the `cluster_vault` fallback the watcher used to run.
+- `auto_cluster` — the watcher runs semantic placement (`suggest_folder`) for new notes and moves the file to the best-matching described folder. It never runs full-graph label-propagation clustering automatically — that stays a manual, experimental `archiver-rag cluster` command.
+- `cluster_threshold` — vestigial; kept so old configs still load. It only mattered for the whole-vault clustering fallback the watcher used to run.
 - `placement_similarity_threshold` — cosine similarity a folder must clear to win semantic placement (0–1).
 - `type_fallback` — when no folder clears the threshold, place the note in its frontmatter `type:` folder instead.
 - `auto_describe` — the watcher regenerates a folder's `_folder.md` description (blended adaptively, never touching `source: manual`) whenever a note is created, deleted, or moved in or out of it.
