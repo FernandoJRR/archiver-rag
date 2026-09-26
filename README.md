@@ -10,6 +10,11 @@
   The agent-agnostic memory management system for your Obsidian vault
 </p>
 
+<p align="center">
+  <a href="https://github.com/FernandoJRR/archiver-rag/actions/workflows/test.yml"><img src="https://github.com/FernandoJRR/archiver-rag/actions/workflows/test.yml/badge.svg" alt="tests" /></a>
+  <a href="https://pypi.org/project/archiver-rag/"><img src="https://img.shields.io/pypi/v/archiver-rag" alt="PyPI version" /></a>
+</p>
+
 Archiver RAG turns your Obsidian vault into a live, queryable knowledge graph that any MCP-compatible AI agent can search, update, and reorganize — without ever leaving its native interface.
 
 Connect it once. Every agent you use (Claude Code, Cursor, Gemini CLI, or your own) gets semantic search, automatic knowledge logging, wikilink-aware graph traversal, and vault health monitoring out of the box.
