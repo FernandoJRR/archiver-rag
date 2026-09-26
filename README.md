@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/archiver-rag-lockup.svg" alt="Archiver RAG" width="320" />
+  <img src="https://raw.githubusercontent.com/FernandoJRR/archiver-rag/main/assets/archiver-rag-lockup.svg" alt="Archiver RAG" width="320" />
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
 </p>
 
 > **Beta.** archiver-rag is under active development and I'm looking for feedback.
-> Tools and config may change before 1.0; see the [changelog](CHANGELOG.md).
+> Tools and config may change before 1.0; see the [changelog](https://github.com/FernandoJRR/archiver-rag/blob/main/CHANGELOG.md).
 > Bugs, ideas, rough edges: [open an issue](https://github.com/FernandoJRR/archiver-rag/issues/new/choose).
 
 Archiver RAG turns your Obsidian vault into a live, queryable knowledge graph that any MCP-compatible AI agent can search, update, and reorganize — without ever leaving its native interface.
@@ -283,7 +283,7 @@ corresponding flags.
 
 ## Agent instructions (skills)
 
-Registering the MCP server gives an agent *access* to the tools — but agents tend to fall back on their own internal memory instead of reaching for the vault. The instruction files in [`skill/`](skill/) fix that: they enforce a **vault-first rule** so the agent searches and stores knowledge in your vault before anything else.
+Registering the MCP server gives an agent *access* to the tools — but agents tend to fall back on their own internal memory instead of reaching for the vault. The instruction files in [`skill/`](https://github.com/FernandoJRR/archiver-rag/tree/main/skill) fix that: they enforce a **vault-first rule** so the agent searches and stores knowledge in your vault before anything else.
 
 **What the skill enforces:**
 
@@ -296,10 +296,10 @@ A version is provided for each agent, since each loads instructions differently:
 
 | Agent | File | Install to |
 |---|---|---|
-| Claude Code | [`skill/claude-code/SKILL.md`](skill/claude-code/SKILL.md) | `~/.claude/skills/archiver-rag/SKILL.md` (on-demand skill) |
-| OpenCode | [`skill/opencode/AGENTS.md`](skill/opencode/AGENTS.md) | project root `AGENTS.md` or `~/.config/opencode/AGENTS.md` |
-| Codex CLI | [`skill/codex/AGENTS.md`](skill/codex/AGENTS.md) | project root `AGENTS.md` or `~/.codex/AGENTS.md` |
-| GitHub Copilot | [`skill/copilot/copilot-instructions.md`](skill/copilot/copilot-instructions.md) | `.github/copilot-instructions.md` |
+| Claude Code | [`skill/claude-code/SKILL.md`](https://github.com/FernandoJRR/archiver-rag/blob/main/skill/claude-code/SKILL.md) | `~/.claude/skills/archiver-rag/SKILL.md` (on-demand skill) |
+| OpenCode | [`skill/opencode/AGENTS.md`](https://github.com/FernandoJRR/archiver-rag/blob/main/skill/opencode/AGENTS.md) | project root `AGENTS.md` or `~/.config/opencode/AGENTS.md` |
+| Codex CLI | [`skill/codex/AGENTS.md`](https://github.com/FernandoJRR/archiver-rag/blob/main/skill/codex/AGENTS.md) | project root `AGENTS.md` or `~/.codex/AGENTS.md` |
+| GitHub Copilot | [`skill/copilot/copilot-instructions.md`](https://github.com/FernandoJRR/archiver-rag/blob/main/skill/copilot/copilot-instructions.md) | `.github/copilot-instructions.md` |
 
 Each file is self-contained — it includes the MCP registration snippet for that agent plus the full vault-first rules and tool reference. For Claude Code the file is an on-demand skill; for the others it's an always-on instruction file (loaded into every session), which makes the vault-first behavior unconditional.
 
