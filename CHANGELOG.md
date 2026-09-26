@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 archiver-rag is in beta: MCP tools, CLI commands and config may still change before 1.0.
 
-## [0.2.0] — 2026-09-XX (beta)
+## [0.2.0] — 2026-09-26 (beta)
 
 First public beta. Feedback is very welcome: please [open an issue](https://github.com/FernandoJRR/archiver-rag/issues/new/choose).
 
