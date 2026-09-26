@@ -1,0 +1,25 @@
+name: Feedback or feature request
+description: Tell me how archiver-rag works for you, or what's missing
+labels: [feedback]
+body:
+  - type: markdown
+    attributes:
+      value: archiver-rag is in beta, so any feedback helps, big or small.
+  - type: textarea
+    id: use
+    attributes:
+      label: What you use it for
+      description: Your vault, your agent, your workflow.
+  - type: textarea
+    id: works
+    attributes:
+      label: What works well
+  - type: textarea
+    id: awkward
+    attributes:
+      label: What's awkward or confusing
+  - type: textarea
+    id: missing
+    attributes:
+      label: What's missing
+      description: Features or behaviour you'd like to see.

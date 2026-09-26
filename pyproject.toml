@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "archiver-rag"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agent-agnostic semantic memory for your vault. Turns notes into a queryable knowledge graph any MCP agent can search, log to, and reorganize."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -75,6 +75,11 @@ archiver-rag = "archiver_rag.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["archiver_rag"]
+
+# Explicit list: hatch otherwise packs every file not in the repo .gitignore,
+# including locally ignored files (e.g. .claude/).
+[tool.hatch.build.targets.sdist]
+include = ["archiver_rag", "tests", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

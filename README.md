@@ -15,6 +15,10 @@
   <a href="https://pypi.org/project/archiver-rag/"><img src="https://img.shields.io/pypi/v/archiver-rag" alt="PyPI version" /></a>
 </p>
 
+> **Beta.** archiver-rag is under active development and I'm looking for feedback.
+> Tools and config may change before 1.0; see the [changelog](CHANGELOG.md).
+> Bugs, ideas, rough edges: [open an issue](https://github.com/FernandoJRR/archiver-rag/issues/new/choose).
+
 Archiver RAG turns your Obsidian vault into a live, queryable knowledge graph that any MCP-compatible AI agent can search, update, and reorganize — without ever leaving its native interface.
 
 Connect it once. Every agent you use (Claude Code, Cursor, Gemini CLI, or your own) gets semantic search, automatic knowledge logging, wikilink-aware graph traversal, and vault health monitoring out of the box.
@@ -58,8 +62,8 @@ The file watcher runs as a background service. Edit a note in Obsidian, save it,
 
 ## Requirements
 
-- Python >= 3.10
-- [pipx](https://pipx.pypa.io/) (recommended for installation)
+- Python >= 3.11
+- [pipx](https://pipx.pypa.io/) or [uv](https://docs.astral.sh/uv/) for installation
 - An Obsidian vault (local `.md` files)
 - An MCP-compatible agent (Claude Code, Cursor, etc.)
 
@@ -67,11 +71,21 @@ The file watcher runs as a background service. Edit a note in Obsidian, save it,
 
 ## Installation
 
+With pipx:
+
 ```bash
 pipx install archiver-rag
 ```
 
-> Use `pipx`, not `pip install` — pipx creates an isolated environment and exposes the CLI globally on `PATH`, which is required for MCP registration to find the correct executable.
+Or with uv:
+
+```bash
+uv tool install archiver-rag
+```
+
+If your system Python is older than 3.11, uv can fetch a suitable one: `uv tool install --python 3.12 archiver-rag` (pipx: `pipx install --python python3.12 archiver-rag`, with that Python already installed).
+
+> Use `pipx` or `uv tool`, not `pip install` — both create an isolated environment and expose the CLI globally on `PATH`, which is required for MCP registration to find the correct executable.
 
 For local development from a clone of this repo, use `pipx install --editable .` instead.
 

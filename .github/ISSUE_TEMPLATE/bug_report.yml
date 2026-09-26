@@ -1,0 +1,50 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What went wrong, including any error message.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. archiver-rag ...
+        2. ...
+  - type: textarea
+    id: status
+    attributes:
+      label: "`archiver-rag status --json` output"
+      description: Paste the full output. Remove anything private, such as vault paths.
+      render: json
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Linux, Other]
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      description: The agent you connect with, if relevant.
+      placeholder: Claude Code, Codex, OpenCode, Copilot, other
+  - type: input
+    id: install
+    attributes:
+      label: Installed with
+      placeholder: pipx, uv, from source
