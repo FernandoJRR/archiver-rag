@@ -21,7 +21,7 @@
 
 Archiver RAG turns your Obsidian vault into a live, queryable knowledge graph that any MCP-compatible AI agent can search, update, and reorganize — without ever leaving its native interface.
 
-Connect it once. Every agent you use (Claude Code, Cursor, Gemini CLI, or your own) gets semantic search, automatic knowledge logging, wikilink-aware graph traversal, and vault health monitoring out of the box.
+Connect it once. Every MCP-compatible agent you use (Claude Code, Claude Desktop, OpenCode, Codex, or your own) gets semantic search, automatic knowledge logging, wikilink-aware graph traversal, and vault health monitoring out of the box.
 
 ---
 
@@ -35,11 +35,13 @@ Your Obsidian vault (.md files)
      Any MCP-compatible agent
 ```
 
-Three layers make search smarter than plain embeddings:
+Search combines three layers, designed to add structural signal on top of plain embeddings:
 
 1. **Contextual prefix** — each chunk is embedded with its note's metadata (folder, tags, wikilinks), so vectors carry structural context
 2. **Rich metadata filtering** — ChromaDB stores folder, type, tags, incoming link count, and wikilinks for filtered retrieval
 3. **Graph reranking** — after vector search, results are re-scored by wikilink proximity to a context note and hub importance
+
+Graph reranking needs links to work with: on a new or sparsely linked vault it adds little, and it contributes more as auto-linking fills in each note's `## Related` section.
 
 The file watcher runs as a background service. Edit a note in Obsidian, save it, and it's indexed and auto-linked within seconds — no manual sync needed.
 
@@ -62,10 +64,11 @@ The file watcher runs as a background service. Edit a note in Obsidian, save it,
 
 ## Requirements
 
+- macOS or Linux (Windows is not supported yet)
 - Python >= 3.11
 - [pipx](https://pipx.pypa.io/) or [uv](https://docs.astral.sh/uv/) for installation
 - An Obsidian vault (local `.md` files)
-- An MCP-compatible agent (Claude Code, Cursor, etc.)
+- An MCP-compatible agent, such as Claude Code, Claude Desktop, OpenCode or Codex
 
 ---
 
@@ -88,6 +91,18 @@ If your system Python is older than 3.11, uv can fetch a suitable one: `uv tool 
 > Use `pipx` or `uv tool`, not `pip install` — both create an isolated environment and expose the CLI globally on `PATH`, which is required for MCP registration to find the correct executable.
 
 For local development from a clone of this repo, use `pipx install --editable .` instead.
+
+### Install size
+
+The install is large because of PyTorch, which runs the embedding model: about 1.4 GB. The first run also downloads the embedding model (all-MiniLM-L6-v2, about 90 MB) once.
+
+On Linux, pip installs the CUDA build of PyTorch by default, which adds several GB you don't need, since archiver-rag runs on the CPU. For a CPU-only install:
+
+```bash
+pipx install archiver-rag --pip-args="--extra-index-url https://download.pytorch.org/whl/cpu"
+# or
+uv tool install archiver-rag --index https://download.pytorch.org/whl/cpu
+```
 
 ---
 
@@ -118,16 +133,16 @@ archiver-rag init
 ```
 
 This will:
-1. Ask for your vault path
+1. Ask for your vault path, and whether to start the watcher automatically at login
 2. Index your vault into ChromaDB
-3. Register the MCP server in `~/.claude.json` (or prompt you to do it manually for other clients)
-4. Install the background watcher as a launchd agent (Mac) or systemd service (Linux)
+3. Register the MCP server for Claude Code (`~/.claude.json`); for other clients see [Manual registration](#manual-registration)
+4. Install the background watcher as a launchd agent (Mac) or systemd service (Linux), if you chose to
 
 ---
 
-## MCP registration (manual)
+## Manual registration
 
-If you prefer to register manually, add this to your MCP client config:
+For clients other than Claude Code, or if you skipped `init`, add this to your MCP client config:
 
 ```json
 {
@@ -142,11 +157,13 @@ If you prefer to register manually, add this to your MCP client config:
 
 Find the executable path with `which archiver-rag`.
 
-For Claude Code specifically, use:
+For Claude Code, if you didn't use `init`:
 
 ```bash
 claude mcp add --scope user archiver-rag $(which archiver-rag) serve
 ```
+
+If `init` already registered it, this reports that `archiver-rag` already exists and changes nothing.
 
 ---
 
@@ -250,9 +267,14 @@ checks it (see below).
 > `move_notes` can modify it.
 
 It is deliberately not this tool's job to decide how you secure that. Keep the server on
-loopback and put a layer you already trust in front of it — a reverse proxy terminating
-TLS, an SSH tunnel, a VPN, or a private overlay network. The server does not need to know
-which; it stays on plain HTTP at `127.0.0.1:8077` in every case.
+loopback and put a layer you already trust in front of it — a reverse proxy that
+terminates TLS and handles authentication, an SSH tunnel, or a VPN (for example
+Tailscale, kept private to your tailnet). The server does not need to know which; it
+stays on plain HTTP at `127.0.0.1:8077` in every case.
+
+Anything that publishes the server to the public internet — Tailscale Funnel, a public
+tunnel, an open port — makes your vault readable and writable by anyone who finds the
+URL. Only do that behind a layer that authenticates requests.
 
 If you bind beyond loopback (`--host 0.0.0.0`), the CLI prints a warning — heed it. You
 can additionally enable DNS-rebinding protection by naming the hostnames you expect to
@@ -299,7 +321,7 @@ A version is provided for each agent, since each loads instructions differently:
 | Claude Code | [`skill/claude-code/SKILL.md`](https://github.com/FernandoJRR/archiver-rag/blob/main/skill/claude-code/SKILL.md) | `~/.claude/skills/archiver-rag/SKILL.md` (on-demand skill) |
 | OpenCode | [`skill/opencode/AGENTS.md`](https://github.com/FernandoJRR/archiver-rag/blob/main/skill/opencode/AGENTS.md) | project root `AGENTS.md` or `~/.config/opencode/AGENTS.md` |
 | Codex CLI | [`skill/codex/AGENTS.md`](https://github.com/FernandoJRR/archiver-rag/blob/main/skill/codex/AGENTS.md) | project root `AGENTS.md` or `~/.codex/AGENTS.md` |
-| GitHub Copilot | [`skill/copilot/copilot-instructions.md`](https://github.com/FernandoJRR/archiver-rag/blob/main/skill/copilot/copilot-instructions.md) | `.github/copilot-instructions.md` |
+| GitHub Copilot (untested) | [`skill/copilot/copilot-instructions.md`](https://github.com/FernandoJRR/archiver-rag/blob/main/skill/copilot/copilot-instructions.md) | `.github/copilot-instructions.md` |
 
 Each file is self-contained — it includes the MCP registration snippet for that agent plus the full vault-first rules and tool reference. For Claude Code the file is an on-demand skill; for the others it's an always-on instruction file (loaded into every session), which makes the vault-first behavior unconditional.
 

@@ -682,7 +682,7 @@
         <span class="layer-numeral" aria-hidden="true">iii.</span>
         <div class="layer-tag">Layer III</div>
         <div class="layer-title">Graph reranking</div>
-        <p class="layer-desc">After ChromaDB returns candidates, scores are boosted by proximity to a <code style="font-family:var(--mono);font-size:.82rem;color:var(--accent)">context_note</code> and by hub importance — how many other notes link to this one.</p>
+        <p class="layer-desc">After ChromaDB returns candidates, scores are boosted by proximity to a <code style="font-family:var(--mono);font-size:.82rem;color:var(--accent)">context_note</code> and by hub importance — how many other notes link to this one. It grows stronger as auto-linking makes the vault denser.</p>
       </div>
     </div>
   </div>
@@ -735,7 +735,7 @@
       <div class="index-card">
         <div class="call-num">Ref · 008</div>
         <div class="index-title">Agent-agnostic</div>
-        <p class="index-desc">Standard MCP over stdio or HTTP. No proprietary SDK, no vendor lock-in. Claude Code, Cursor, Windsurf, Gemini CLI, Zed — if it speaks MCP, it works with archiver-rag.</p>
+        <p class="index-desc">Standard MCP over stdio or HTTP. No proprietary SDK, no vendor lock-in. Tested with Claude Code, Claude Desktop, OpenCode and Codex. Any other MCP client should work too.</p>
       </div>
     </div>
   </div>
@@ -807,7 +807,7 @@
     <div class="reveal">
       <p class="acc">Tools exposed to any MCP agent</p>
       <h2>Six tools. Any agent.</h2>
-      <p class="lede" style="margin-bottom:2.5rem;">Every capability is a discrete MCP tool — discoverable, composable, and callable from any agent that speaks stdio MCP.</p>
+      <p class="lede" style="margin-bottom:2.5rem;">Every capability is a discrete MCP tool — discoverable, composable, and callable from any agent that speaks stdio or HTTP MCP.</p>
     </div>
     <div class="reveal">
       <table class="ledger">
@@ -862,8 +862,8 @@
 
       <div class="install-copy reveal">
         <p class="acc">Up and running in minutes</p>
-        <h2>Up and running in three commands</h2>
-        <p class="lede">Install the package with pipx or uv, point it at your vault, then register it as an MCP server — done.</p>
+        <h2>Up and running in two commands</h2>
+        <p class="lede">Install the package with pipx or uv, then run <code>init</code>: it indexes your vault and registers the MCP server. macOS or Linux; Windows is not supported yet.</p>
         <div class="copy-block">
           <code>pipx install archiver-rag</code>
           <button class="copy-btn" data-copy="pipx install archiver-rag">copy</button>
@@ -875,10 +875,6 @@
         <div class="copy-block">
           <code>archiver-rag init</code>
           <button class="copy-btn" data-copy="archiver-rag init">copy</button>
-        </div>
-        <div class="copy-block">
-          <code>claude mcp add --scope user archiver-rag $(which archiver-rag) serve</code>
-          <button class="copy-btn" data-copy="claude mcp add --scope user archiver-rag $(which archiver-rag) serve">copy</button>
         </div>
         <div class="install-ctas" style="margin-top:1.5rem">
           <a href="#" class="btn btn-primary">Get started</a>
@@ -903,11 +899,8 @@
   <span class="tm">Start automatically on login? [y/n]:</span> <span class="tc">y</span>
 <span class="ts">  ✓ Config saved → ~/.config/archiver-rag/config.json</span>
 <span class="ts">  ✓ Indexed 47 notes, 203 chunks</span>
+<span class="ts">  ✓ MCP server registered (Claude Code)</span>
 <span class="ts">  ✓ Watcher service registered (launchd)</span>
-
-<span class="tp">$</span> <span class="tc">claude mcp add --scope user \</span>
-<span class="targ">    archiver-rag $(which archiver-rag) serve</span>
-<span class="ts">  ✓ MCP server registered</span>
 
 <span class="tp">$</span> <span class="tc">archiver-rag status</span>
 <span class="ts">  ✓ running · 47 notes indexed</span>
@@ -997,10 +990,8 @@
     { text: 'Start automatically on login? [y/n]: y',                   cls: 'tm' },
     { text: '✓ Config saved → ~/.config/archiver-rag/config.json',             cls: 'ts' },
     { text: '✓ Indexed 47 notes, 203 chunks',                           cls: 'ts' },
+    { text: '✓ MCP server registered (Claude Code)',                     cls: 'ts' },
     { text: '✓ Watcher service registered (launchd)',                   cls: 'ts' },
-    { text: '',                                                          cls: '' },
-    { text: 'claude mcp add --scope user archiver-rag $(which archiver-rag) serve', isCmd: true },
-    { text: '✓ MCP server registered',                                  cls: 'ts' },
     { text: '',                                                          cls: '' },
     { text: 'archiver-rag status',                                      isCmd: true },
     { text: '✓ running · 47 notes indexed',                             cls: 'ts' },
