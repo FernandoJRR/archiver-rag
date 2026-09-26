@@ -373,7 +373,9 @@ def test_daemon_endpoint_reads_linux_exec_start(monkeypatch, tmp_path):
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def test_uninstall_removes_both_services(monkeypatch, http_def, fake_exe, tmp_path):
+def test_uninstall_removes_both_services(
+    monkeypatch, http_def, fake_exe, recorded_run, tmp_path
+):
     from rich.prompt import Confirm
 
     monkeypatch.setattr(service.sys, "platform", "darwin")
@@ -410,3 +412,5 @@ def test_uninstall_removes_both_services(monkeypatch, http_def, fake_exe, tmp_pa
     assert result.exit_code == 0, result.output
     assert not watcher.plist_path.exists()
     assert not http_def.plist_path.exists()
+    # launchctl is faked, never run for real (it doesn't exist on Linux runners).
+    assert [c[:2] for c in recorded_run] == [["launchctl", "unload"]] * 2
