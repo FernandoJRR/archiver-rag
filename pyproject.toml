@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "archiver-rag"
-version = "0.2.0"
+version = "0.2.1"
 description = "Agent-agnostic semantic memory for your vault. Turns notes into a queryable knowledge graph any MCP agent can search, log to, and reorganize."
 readme = "README.md"
 requires-python = ">=3.11"

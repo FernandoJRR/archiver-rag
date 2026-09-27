@@ -4,7 +4,11 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 archiver-rag is in beta: MCP tools, CLI commands and config may still change before 1.0.
 
-## [Unreleased]
+## [0.2.1] — 2026-09-27 (beta)
+
+### Added
+
+- Documentation: a "Why archiver-rag" section, a guide to how configuration works and what's on or off by default, install-size notes with CPU-only PyTorch commands, `SECURITY.md` and `CONTRIBUTING.md`.
 
 ### Changed
 
@@ -69,5 +73,6 @@ Then restart your MCP client so agents see the renamed tools. The first command 
 
 Initial release: indexing of an Obsidian vault into ChromaDB, a file watcher with auto-linking, graph-aware semantic search, and an MCP server over stdio with `search_vault`, `get_connections`, `vault_status`, `move_notes`, `log_note`, `cluster_vault` and `cluster_note`.
 
+[0.2.1]: https://github.com/FernandoJRR/archiver-rag/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/FernandoJRR/archiver-rag/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/FernandoJRR/archiver-rag/releases/tag/v0.1.0
