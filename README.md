@@ -19,9 +19,23 @@
 > Tools and config may change before 1.0; see the [changelog](https://github.com/FernandoJRR/archiver-rag/blob/main/CHANGELOG.md).
 > Bugs, ideas, rough edges: [open an issue](https://github.com/FernandoJRR/archiver-rag/issues/new/choose).
 
-Archiver RAG turns your Obsidian vault into a live, queryable knowledge graph that any MCP-compatible AI agent can search, update, and reorganize — without ever leaving its native interface.
+Archiver RAG is a self-hosted, self-organizing memory system for your AI agents, built on your Obsidian vault. Any MCP-compatible agent can search it, add to it and reorganize it, without leaving its own interface.
 
 Connect it once. Every MCP-compatible agent you use (Claude Code, Claude Desktop, OpenCode, Codex, or your own) gets semantic search, automatic knowledge logging, wikilink-aware graph traversal, and vault health monitoring out of the box.
+
+---
+
+## Why archiver-rag
+
+A memory system your agents share, and one you can shape yourself.
+
+- **Self-hosted.** Memory, index and embedding model all run on your own machine. No cloud service to depend on, no embedding API to pay for, no one else holding what your agents know.
+- **One memory system, every agent.** Claude Code, Claude Desktop, Codex and OpenCode all read from and write to the same vault, so what one agent learns, the next one already knows.
+- **You can change it too.** It's your Obsidian vault: write down your own ideas, correct what's wrong, delete what's stale, and every agent works from that from then on.
+- **A memory system that looks after itself.** The experiment is that notes are linked, described and filed by meaning as they're saved, with no one, human or agent, organizing it by hand. The goal is a vault that knows what's inside it and keeps itself in order.
+- **No lock-in.** Stop using archiver-rag and you still have a normal Obsidian vault in plain Markdown.
+
+**Not for you if** you want an agent to quietly remember everything from every conversation. archiver-rag keeps what you or your agents decide is worth writing down.
 
 ---
 
@@ -56,9 +70,9 @@ The file watcher runs as a background service. Edit a note in Obsidian, save it,
 - **Soft delete** — `archiver-rag delete` moves notes to `.trash/` (Obsidian's delete convention, recoverable) and sweeps inbound `[[wikilinks]]` from the rest of the vault
 - **Vault health** — single call returns orphaned notes, broken links, missing frontmatter, tag stats, and recent activity
 - **Wikilink-aware reorganization** — move files and every `[[link]]` across the vault is rewritten automatically
-- **Smart clustering** — label-propagation algorithm groups notes by wikilink structure and suggests folder organization (manual command — the watcher runs semantic placement, not full-graph clustering)
 - **Inbox routing (opt-in)** — when no folder claims a note, it can be parked in `inbox/` and a new real folder is spun out automatically once a group of embedding-similar notes accumulates there (off by default)
 - **Agent-agnostic** — exposes a standard MCP interface over stdio or HTTP; works with any MCP-compatible client
+- **Whole-vault clustering (experimental)** — `archiver-rag cluster` groups notes by wikilink structure and suggests folders. Preview first; `--apply` asks before moving anything. Semantic placement is the recommended way to organize.
 
 ---
 
