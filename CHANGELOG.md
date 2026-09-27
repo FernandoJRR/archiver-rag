@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 archiver-rag is in beta: MCP tools, CLI commands and config may still change before 1.0.
 
+## [Unreleased]
+
+### Changed
+
+- `auto_cluster` is now off unless you turn it on: `init` writes `false`, and a config without the key no longer moves notes. Existing configs that set it keep their value.
+- `cluster_threshold` is deprecated and no longer written by `init`; it never had an effect in 0.2.0.
+
+### Fixed
+
+- `archiver-rag status` now shows placement settings as the watcher actually applies them. Previously a setting missing from the config was shown as "off" even when the watcher treated it as on.
+
 ## [0.2.0] — 2026-09-26 (beta)
 
 First public beta. Feedback is very welcome: please [open an issue](https://github.com/FernandoJRR/archiver-rag/issues/new/choose).

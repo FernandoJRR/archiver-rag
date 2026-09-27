@@ -335,3 +335,37 @@ def test_compose_status_reports_unconfigured_rather_than_exiting():
     assert composed["config"]["configured"] is False
     assert composed["index"] is None
     json.loads(json.dumps(composed, default=str))
+
+
+def _write_config(install, text: str):
+    install["config_dir"].mkdir(parents=True, exist_ok=True)
+    (install["config_dir"] / "config.json").write_text(text)
+
+
+def test_status_config_uses_watcher_defaults_for_missing_keys(tmp_install):
+    """A missing key must render as what the watcher does, not as raw None ("off")."""
+    _write_config(tmp_install, json.dumps({"vault_path": "/v"}))
+    cfg = report._effective_placement_config()
+    assert cfg["auto_cluster"] is False
+    assert cfg["type_fallback"] is True
+    assert cfg["placement_similarity_threshold"] == 0.55
+    assert cfg["auto_describe"] is False
+    assert cfg["auto_inbox"] is False
+
+
+def test_status_config_corrupt_file_reports_everything_off(tmp_install):
+    _write_config(tmp_install, "{not json")
+    cfg = report._effective_placement_config()
+    assert not (cfg["auto_cluster"] or cfg["auto_describe"] or cfg["auto_inbox"])
+
+
+def test_status_config_reports_explicit_values(tmp_install):
+    _write_config(tmp_install, json.dumps({
+        "auto_cluster": True, "type_fallback": False,
+        "placement_similarity_threshold": 0.5, "auto_describe": True, "auto_inbox": True,
+    }))
+    cfg = report._effective_placement_config()
+    assert cfg == {
+        "auto_cluster": True, "auto_describe": True, "auto_inbox": True,
+        "placement_similarity_threshold": 0.5, "type_fallback": False,
+    }

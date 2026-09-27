@@ -38,8 +38,7 @@ def run_init():
         "vault_path": str(vault_path),
         "install_path": str(paths.data_dir()),
         "chroma_path": str(chroma_path),
-        "auto_cluster": True,
-        "cluster_threshold": 5,
+        "auto_cluster": False,
     }
     paths.config_path().write_text(json.dumps(config, indent=2))
     print("[green]✅ Config saved[/green]")

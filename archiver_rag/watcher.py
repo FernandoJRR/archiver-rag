@@ -60,8 +60,9 @@ def _get_cluster_config() -> tuple[bool, int, float, bool]:
     """Return (auto_cluster, threshold, placement_similarity_threshold, type_fallback).
 
     IMPORTANT: Must NOT be refactored through load_config() — load_config() returns {} on
-    error, and config.get("auto_cluster", True) would be True, which starts moving files
-    on a corrupt config. The except path here returns auto_cluster=False (do nothing).
+    error, which would turn a corrupt config into the defaults. The except path returns
+    auto_cluster=False (do nothing). A missing key is also off: nothing moves until the
+    user opts in.
     """
     try:
         import json
@@ -70,7 +71,7 @@ def _get_cluster_config() -> tuple[bool, int, float, bool]:
 
         config = json.loads(paths.config_path().read_text())
         return (
-            config.get("auto_cluster", True),
+            bool(config.get("auto_cluster", False)),
             int(config.get("cluster_threshold", 5)),
             float(config.get("placement_similarity_threshold", 0.55)),
             bool(config.get("type_fallback", True)),

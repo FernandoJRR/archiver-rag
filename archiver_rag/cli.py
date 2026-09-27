@@ -927,7 +927,7 @@ def config_cmd(
         None, "--auto-cluster/--no-auto-cluster", help="Enable watcher auto-clustering"
     ),
     cluster_threshold: int = typer.Option(
-        None, "--cluster-threshold", help="New notes before full re-cluster"
+        None, "--cluster-threshold", help="[Deprecated] No effect; kept so old scripts still run"
     ),
     placement_threshold: float = typer.Option(
         None, "--placement-threshold", help="Cosine similarity threshold for semantic placement (0–1, default 0.55)"

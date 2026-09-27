@@ -69,6 +69,25 @@ def _sample(items: list, limit: int = 5) -> str:
 # status
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _effective_placement_config() -> dict:
+    """Settings as the watcher applies them: its own readers, so defaults for missing
+    keys and the all-off fallback for a corrupt file can never disagree with status."""
+    from archiver_rag.watcher import (
+        _get_cluster_config,
+        _get_describe_config,
+        _get_inbox_config,
+    )
+
+    auto_cluster, _, threshold, type_fallback = _get_cluster_config()
+    return {
+        "auto_cluster": auto_cluster,
+        "auto_describe": _get_describe_config()[0],
+        "auto_inbox": _get_inbox_config()[0],
+        "placement_similarity_threshold": threshold,
+        "type_fallback": type_fallback,
+    }
+
+
 def compose_status() -> dict:
     from archiver_rag import runtime
     from archiver_rag.core.index_stats import index_stats
@@ -87,13 +106,7 @@ def compose_status() -> dict:
         "config": {
             "configured": bool(vault_path),
             "vault_path": vault_path,
-            "auto_cluster": config.get("auto_cluster"),
-            "auto_describe": config.get("auto_describe"),
-            "auto_inbox": config.get("auto_inbox"),
-            "placement_similarity_threshold": config.get(
-                "placement_similarity_threshold"
-            ),
-            "type_fallback": config.get("type_fallback"),
+            **_effective_placement_config(),
             "paths": _config_paths(),
         },
         "vault": None,
