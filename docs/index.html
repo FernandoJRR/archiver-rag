@@ -312,6 +312,9 @@
     .layer-title { font-family: var(--display); font-size: 1.18rem; font-weight: 500; margin-bottom: .75rem; position: relative; }
     .layer-desc { font-size: .9rem; color: var(--ink-soft); line-height: 1.7; position: relative; }
 
+    /* ── WHY ────────────────────────────────────────────────────────── */
+    #why { padding: 90px 0; border-top: 1px solid var(--line-2); }
+
     /* ── FEATURES ───────────────────────────────────────────────────── */
     #features { background: var(--paper-2); border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); padding: 90px 0; }
     .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
@@ -561,6 +564,7 @@
       <span class="nav-wordmark"><span class="nav-wordmark-a">Archiver</span><span class="nav-wordmark-r">RAG</span></span>
     </a>
     <ul class="nav-links">
+      <li><a href="#why">Why</a></li>
       <li><a href="#pipeline">Pipeline</a></li>
       <li><a href="#retrieval">Retrieval</a></li>
       <li><a href="#graph">The Graph</a></li>
@@ -579,9 +583,9 @@
 
       <div class="hero-left">
         <div class="hero-margin-rule" aria-hidden="true"></div>
-        <p class="acc">Semantic memory for your Obsidian vault · Beta v0.2.0</p>
+        <p class="acc">Self-hosted memory for your AI agents · Beta v0.2.0</p>
         <h1>A <em>finding aid</em> for your knowledge graph</h1>
-        <p class="lede">Turns your Obsidian vault into a live, queryable knowledge graph. Connect it once — every agent you use gets semantic search, wikilink traversal, and vault health through standard MCP tools.</p>
+        <p class="lede">A self-hosted, self-organizing memory system built on your Obsidian vault. Every agent you connect searches it and writes to it, and you can shape it yourself.</p>
         <div class="hero-ctas">
           <a href="#install" class="btn btn-primary">Get started</a>
           <a href="https://github.com/FernandoJRR/archiver-rag" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">View on GitHub →</a>
@@ -617,6 +621,49 @@
         </div>
       </div><!-- /hero-right -->
 
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ WHY -->
+<section id="why">
+  <div class="container">
+    <div class="reveal">
+      <p class="acc">Why archiver-rag</p>
+      <h2>A memory your agents share</h2>
+      <p class="lede" style="margin-bottom:3rem;">And one you can shape yourself.</p>
+    </div>
+    <div class="feat-grid reveal">
+      <div class="index-card">
+        <div class="call-num">Principle · 01</div>
+        <div class="index-title">Self-hosted</div>
+        <p class="index-desc">Memory, index and embedding model all run on your own machine. No cloud service to depend on, no embedding API to pay for, no one else holding what your agents know.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Principle · 02</div>
+        <div class="index-title">One memory system, every agent</div>
+        <p class="index-desc">Claude Code, Claude Desktop, Codex and OpenCode all read from and write to the same vault, so what one agent learns, the next one already knows.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Principle · 03</div>
+        <div class="index-title">You can change it too</div>
+        <p class="index-desc">It's your Obsidian vault: write down your own ideas, correct what's wrong, delete what's stale, and every agent works from that from then on.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Experiment · 04</div>
+        <div class="index-title">A memory system that looks after itself</div>
+        <p class="index-desc">Notes are linked, described and filed by meaning as they're saved, with no one, human or agent, organizing it by hand. The goal is a vault that knows what's inside it and keeps itself in order.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Principle · 05</div>
+        <div class="index-title">No lock-in</div>
+        <p class="index-desc">Stop using archiver-rag and you still have a normal Obsidian vault in plain Markdown.</p>
+      </div>
+      <div class="index-card">
+        <div class="call-num">Caveat · 06</div>
+        <div class="index-title">Not for you if…</div>
+        <p class="index-desc">…you want an agent to quietly remember everything from every conversation. archiver-rag keeps what you or your agents decide is worth writing down.</p>
+      </div>
     </div>
   </div>
 </section>
