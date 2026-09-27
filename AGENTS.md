@@ -69,7 +69,7 @@ archiver_rag/               ← Python package (pip installable)
     ├── server.py           ← tool schemas + dispatch (transport-agnostic low-level Server)
     ├── http.py             ← streamable HTTP transport: build_app() / serve_http()
     └── register.py         ← writes MCP entry to ~/.claude.json (stdio, or url= for HTTP)
-tests/                      ← 451 tests, run with the pipx venv python (see Testing)
+tests/                      ← 454 tests, run with the pipx venv python (see Testing)
 ├── conftest.py             ← vault safety fixtures (_no_real_vault, tmp_vault) + home-path safety fixtures (_no_real_home_paths, tmp_install)
 ├── test_wikilinks.py       ← unit tests for wikilinks.py
 ├── test_linker_section.py  ← characterization tests for _append_links_section
@@ -99,6 +99,7 @@ tests/                      ← 451 tests, run with the pipx venv python (see Te
 ├── test_mcp_dispatch.py    ← _dispatch routing, write lock held only by mutating tools, event loop not blocked, per-tool notification emission + Notifier fail-soft
 ├── test_serve_flags.py     ← serve --transport/host/port defaults, non-loopback warning, register_mcp both shapes
 ├── test_rerank.py          ← hub_boost saturation/scaling (graph/rerank.py)
+├── test_init_cmd.py        ← init expands ~ / relative vault paths and stores them absolute; bad path writes no config
 └── test_site_version.py    ← docs/index.html shows the same version as pyproject.toml (skipped when docs/ is absent)
 persistence/
 └── chroma_db/              ← dev only, gitignored. Production: $XDG_DATA_HOME/archiver-rag/chroma_db/ (~/.local/share/archiver-rag/chroma_db/)
@@ -350,7 +351,7 @@ The one deliberate non-change: the vault has no git remote. That is intentional,
 
 ### Closed (2026-09-27)
 
-- ✅ **Public beta launch — 0.2.0 on PyPI.** MCP tool `cluster_vault` removed; `cluster_note` renamed `suggest_folder` and made suggestion-only, reading the same config as `place` via `graph/placement.py::resolve_placement_config()`; `utils.find_note()` skips hidden dirs so a trashed copy can't shadow a note. Dependencies given tested ranges (incl. `mcp<2` — mcp 2.x breaks the low-level `Server` API, which is why 0.1.0, unpinned, crashes on fresh installs and was **yanked** on PyPI); Python ≥ 3.11. CI added (`.github/workflows/test.yml`: 3.11–3.14 × Ubuntu/macOS, CPU-only torch on Linux, explicit ruff rule set). sdist contents made explicit (`[tool.hatch.build.targets.sdist]`) after finding hatch had packed locally-ignored `.claude/` files. Docs: CHANGELOG, SECURITY.md (private vulnerability reporting enabled), CONTRIBUTING.md, issue templates, uv install path, beta labelling on README/site. Follow-up fixes (Unreleased, for 0.2.1): `auto_cluster` defaults off (init writes `false`, missing key = off); `status` renders settings through the watcher's own readers (it previously showed raw file values, so a missing key read "off" while the watcher treated it as on); `cluster_threshold` deprecated; `tests/test_site_version.py` keeps `docs/index.html`'s hand-written version in sync with `pyproject.toml`. 451 tests green.
+- ✅ **Public beta launch — 0.2.0 on PyPI.** MCP tool `cluster_vault` removed; `cluster_note` renamed `suggest_folder` and made suggestion-only, reading the same config as `place` via `graph/placement.py::resolve_placement_config()`; `utils.find_note()` skips hidden dirs so a trashed copy can't shadow a note. Dependencies given tested ranges (incl. `mcp<2` — mcp 2.x breaks the low-level `Server` API, which is why 0.1.0, unpinned, crashes on fresh installs and was **yanked** on PyPI); Python ≥ 3.11. CI added (`.github/workflows/test.yml`: 3.11–3.14 × Ubuntu/macOS, CPU-only torch on Linux, explicit ruff rule set). sdist contents made explicit (`[tool.hatch.build.targets.sdist]`) after finding hatch had packed locally-ignored `.claude/` files. Docs: CHANGELOG, SECURITY.md (private vulnerability reporting enabled), CONTRIBUTING.md, issue templates, uv install path, beta labelling on README/site. Follow-up fixes, released in 0.2.1 on 2026-09-27: `auto_cluster` defaults off (init writes `false`, missing key = off); `status` renders settings through the watcher's own readers (it previously showed raw file values, so a missing key read "off" while the watcher treated it as on); `cluster_threshold` deprecated; `tests/test_site_version.py` keeps `docs/index.html`'s hand-written version in sync with `pyproject.toml`. 451 tests green.
 
 ### Closed (2026-08-31)
 
@@ -615,7 +616,7 @@ Requires Python >= 3.11. Currently running 3.14.3.
 /Users/fernanrod/.local/pipx/venvs/archiver-rag/bin/python -m pytest tests/ -q
 ```
 
-There is no `python` on PATH and no pytest in the system venv — the pipx venv is the only interpreter with `chromadb` installed. (pi-lens's pytest adapter hardcodes `command: "python"` and therefore cannot run this suite on this machine — verify with the pipx venv python above.) 451 tests, all green. Tests marked `slow` load the sentence-transformers model (`embed()` calls) and take ~8 seconds; run with `-m "not slow"` to skip them.
+There is no `python` on PATH and no pytest in the system venv — the pipx venv is the only interpreter with `chromadb` installed. (pi-lens's pytest adapter hardcodes `command: "python"` and therefore cannot run this suite on this machine — verify with the pipx venv python above.) 454 tests, all green. Tests marked `slow` load the sentence-transformers model (`embed()` calls) and take ~8 seconds; run with `-m "not slow"` to skip them.
 
 `tests/conftest.py` carries the safety net: `_no_real_vault` is **autouse** and makes `get_vault_path()` raise in every test, so a test can never touch the real vault by accident. Each module binds its own reference via `from archiver_rag.utils import get_vault_path`, so the fixture patches every module in `_MODULES_WITH_VAULT` individually — **add new modules to that list** when they import `get_vault_path` at module level. `tmp_vault` opts back in, repointing those same bindings at a temp dir.
 

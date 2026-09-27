@@ -21,9 +21,10 @@ def run_init():
     print("[blue]🔍 Archiver RAG Setup[/blue]\n")
 
     # 1. Ask for vault path
-    vault_path = Prompt.ask("Path to your Obsidian vault")
-    if not Path(vault_path).exists():
-        print("[red]Path does not exist[/red]")
+    # Expand ~ and store an absolute path: the watcher and MCP server run from other dirs.
+    vault_path = str(Path(Prompt.ask("Path to your Obsidian vault")).expanduser().resolve())
+    if not Path(vault_path).is_dir():
+        print(f"[red]Not a directory: {vault_path}[/red]")
         raise typer.Exit(1)
 
     paths.config_dir().mkdir(parents=True, exist_ok=True)

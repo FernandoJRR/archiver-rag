@@ -128,7 +128,7 @@ See [CONTRIBUTING.md](https://github.com/FernandoJRR/archiver-rag/blob/main/CONT
 git clone https://github.com/FernandoJRR/archiver-rag && cd archiver-rag
 pipx install --editable .   # global CLI — required for MCP registration
 pip install --group dev -e .  # adds pytest, ruff
-pytest                      # 451 tests, ~5 s
+pytest                      # 454 tests, ~5 s
 ```
 
 Tests marked `slow` load the sentence-transformers model; skip them with `-m "not slow"`.

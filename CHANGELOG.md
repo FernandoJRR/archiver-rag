@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 archiver-rag is in beta: MCP tools, CLI commands and config may still change before 1.0.
 
+## [Unreleased]
+
+### Fixed
+
+- `archiver-rag init` now accepts vault paths starting with `~` or relative to the current folder, and stores them as absolute paths. Previously `~/my-vault` was rejected with "Path does not exist".
+
 ## [0.2.1] — 2026-09-27 (beta)
 
 ### Added
