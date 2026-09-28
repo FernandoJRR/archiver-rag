@@ -222,38 +222,8 @@
       font-family: var(--mono); font-size: .62rem;
       letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
     }
-    .hero-term-body {
-      background: #2e2215;
-      padding: 1.25rem 1.375rem;
-      font-family: var(--mono);
-      font-size: .8rem;
-      line-height: 1.82;
-      min-height: 270px;
-      overflow: hidden;
-      position: relative;
-    }
-    /* subtle scanlines to tie terminal into the paper grain aesthetic */
-    .hero-term-body::after {
-      content: '';
-      position: absolute; inset: 0;
-      background: repeating-linear-gradient(
-        to bottom,
-        transparent, transparent 3px,
-        rgba(0,0,0,.045) 3px, rgba(0,0,0,.045) 4px
-      );
-      pointer-events: none;
-    }
-    #hero-term-out { white-space: pre-wrap; position: relative; z-index: 1; }
-    .hero-term-cursor {
-      display: inline-block;
-      width: 7px; height: 1em;
-      background: var(--brass);
-      vertical-align: text-bottom;
-      margin-left: 1px;
-      animation: blink-caret 1.1s step-end infinite;
-      position: relative; z-index: 1;
-    }
-    @keyframes blink-caret { 0%,100%{opacity:1} 50%{opacity:0} }
+    .hero-demo { margin: 4rem auto 0; max-width: 960px; }
+    .hero-demo img { display: block; width: 100%; height: auto; background: #262427; }
 
     /* ── PIPELINE ───────────────────────────────────────────────────── */
     #pipeline { background: var(--paper-2); border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); padding: 80px 0; }
@@ -612,18 +582,17 @@
             <circle cx="45" cy="67" r="3.6" fill="#8d3322"/>
           </svg>
         </div>
-        <div class="hero-term reveal">
-          <div class="hero-term-bar">
-            <span class="hero-term-label">Terminal · archiver-rag</span>
-            <span class="hero-term-acc">Acc. No. 0001</span>
-          </div>
-          <div class="hero-term-body">
-            <span id="hero-term-out"></span><span class="hero-term-cursor" id="hero-term-cursor"></span>
-          </div>
-        </div>
       </div><!-- /hero-right -->
 
     </div>
+
+    <figure class="hero-term hero-demo reveal">
+      <div class="hero-term-bar">
+        <span class="hero-term-label">Recorded demo</span>
+        <span class="hero-term-acc">Acc. No. 0001</span>
+      </div>
+      <img src="https://raw.githubusercontent.com/FernandoJRR/archiver-rag/main/assets/demo.gif" width="1323" height="1000" loading="lazy" alt="Terminal recording: archiver-rag init indexes a demo vault, the watcher indexes a newly saved note, and Claude Code finds it with search_vault">
+    </figure>
   </div>
 </section>
 
@@ -1031,66 +1000,6 @@
   }, { threshold: .14 });
 
   document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-
-  // ── Hero terminal typewriter ───────────────────────────────────────
-  const HERO_LINES = [
-    { text: 'archiver-rag init',                                        isCmd: true },
-    { text: 'Path to your Obsidian vault: ~/Documents/MyVault',         cls: 'tm' },
-    { text: 'Start automatically on login? [y/n]: y',                   cls: 'tm' },
-    { text: '✓ Config saved → ~/.config/archiver-rag/config.json',             cls: 'ts' },
-    { text: '✓ Indexed 47 notes, 203 chunks',                           cls: 'ts' },
-    { text: '✓ MCP server registered (Claude Code)',                     cls: 'ts' },
-    { text: '✓ Watcher service registered (launchd)',                   cls: 'ts' },
-    { text: '',                                                          cls: '' },
-    { text: 'archiver-rag status',                                      isCmd: true },
-    { text: '✓ running · 47 notes indexed',                             cls: 'ts' },
-  ];
-
-  const heroOut = document.getElementById('hero-term-out');
-  let hLi = 0, hCi = 0, hCur = null;
-
-  function heroType() {
-    if (hLi >= HERO_LINES.length) {
-      setTimeout(() => {
-        heroOut.style.transition = 'opacity 0.4s';
-        heroOut.style.opacity = '0';
-        setTimeout(() => {
-          heroOut.innerHTML = '';
-          heroOut.style.transition = '';
-          heroOut.style.opacity = '1';
-          hLi = 0; hCi = 0; hCur = null;
-          setTimeout(heroType, 500);
-        }, 400);
-      }, 3000);
-      return;
-    }
-
-    const line = HERO_LINES[hLi];
-
-    if (hCi === 0) {
-      if (hLi > 0) heroOut.appendChild(document.createTextNode('\n'));
-      if (line.text === '') { hLi++; hCi = 0; setTimeout(heroType, 200); return; }
-      if (line.isCmd) {
-        const prompt = document.createElement('span');
-        prompt.className = 'tp';
-        prompt.textContent = '$ ';
-        heroOut.appendChild(prompt);
-      }
-      hCur = document.createElement('span');
-      hCur.className = line.isCmd ? 'tc' : (line.cls || '');
-      heroOut.appendChild(hCur);
-    }
-
-    if (hCi < line.text.length) {
-      hCur.textContent += line.text[hCi++];
-      setTimeout(heroType, 40);
-    } else {
-      hLi++; hCi = 0; hCur = null;
-      setTimeout(heroType, line.isCmd ? 300 : 160);
-    }
-  }
-
-  setTimeout(heroType, 500);
 
   // ── Copy to clipboard ──────────────────────────────────────────────
   document.querySelectorAll('[data-copy]').forEach(btn => {
