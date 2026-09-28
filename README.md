@@ -19,6 +19,10 @@
 > Tools and config may change before 1.0; see the [changelog](https://github.com/FernandoJRR/archiver-rag/blob/main/CHANGELOG.md).
 > Bugs, ideas, rough edges: [open an issue](https://github.com/FernandoJRR/archiver-rag/issues/new/choose).
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/FernandoJRR/archiver-rag/main/assets/demo.gif" alt="archiver-rag demo: init indexes a vault, the watcher indexes a newly saved note, and Claude Code finds it with search_vault" width="100%" />
+</p>
+
 Archiver RAG is a self-hosted, self-organizing memory system for your AI agents, built on your Obsidian vault. Any MCP-compatible agent can search it, add to it and reorganize it, without leaving its own interface.
 
 Connect it once. Every MCP-compatible agent you use (Claude Code, Claude Desktop, OpenCode, Codex, or your own) gets semantic search, automatic knowledge logging, wikilink-aware graph traversal, and vault health monitoring out of the box.
@@ -530,7 +534,7 @@ Features on the way:
 
 - **RAG-Anything integration** — extend ingestion beyond Markdown to handle PDFs, Office documents, images, and other file types, so the vault can become a true multi-format knowledge base rather than `.md`-only.
 - **Archiver subagents** — dedicated subagents that take over vault management (search, logging, reorganization, clustering) on the main agent's behalf, so the primary agent can delegate knowledge work instead of context-switching into it.
-
+- **TUI Interface** - dedicated interface to manage the vault memory system including links, notes and settings.
 ---
 
 ## License
